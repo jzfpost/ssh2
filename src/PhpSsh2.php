@@ -22,7 +22,7 @@ namespace jzfpost\ssh2;
  * Foundation, Inc., 59 Temple Place, Suite 330,Boston,MA 02111-1307 USA
  *
  * @category  Net
- * @version 2.0.1
+ * @version 0.0.1
  *
  * @license   GNU/LGPL v2.1
  *
@@ -34,17 +34,16 @@ use Psr\Log\LoggerTrait;
 
 /**
  * Class PhpSsh2
- * @package jzfpost\takeNetAssets\components
+ * @package jzfpost\ssh2
  *
  * USAGE:
- * ```php <br>
- * $phpSsh2 = new PhpSsh2(['timeout' => 10, 'wait' => '3500', 'logging' => '/var/log/ssh2/log.txt', 'screenLogging' => true]);<br>
+ * ```php
+ * $phpSsh2 = new PhpSsh2(['timeout' => 10, 'wait' => '3500', 'logging' => '/var/log/ssh2/log.txt', 'screenLogging' => true]);
  * $phpSsh2->connect($host)
  * 		->authPassword($username, $password)
  * 		->openShell(PhpSsh2::PROMPT_LINUX, 'xterm');
  *      $result = $phpSsh2->send('ls -a', PhpSsh2::PROMPT_LINUX);
- *      $buffer = $phpSsh2->getBuffer();
- *
+ *      $phpSsh2->disconnect();
  * ```
  */
 class PhpSsh2
