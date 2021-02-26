@@ -367,12 +367,11 @@ class PhpSsh2
 		$this->info('Shell opened success at {host}:{port} connection', ['{host}' => $this->host, '{port}' => $this->port]);
 
 		$this->errors = @ssh2_fetch_stream($this->shell, SSH2_STREAM_STDERR);
-//		$this->shell = $shell; //@ssh2_fetch_stream($shell, SSH2_STREAM_STDIO);
+
 		if (false === @stream_set_blocking($this->shell, true)) {
             $this->critical("Unable to set blocking shell at {host}:{port} connection", ['{host}' => $this->host, '{port}' => $this->port]);
             throw new Ssh2Exception("Unable to set blocking shell at $this->host:$this->port connection");
         }
-//		@stream_set_blocking($this->errors, true);
 
 		$this->readTo($prompt);
 		$this->clearBuffer();
@@ -386,14 +385,12 @@ class PhpSsh2
 	public function closeShell(): self
     {
 
-        if(!fclose($this->shell)) {
+        if(!@fclose($this->shell)) {
             $this->critical('Shell stream closes is fail.');
         }
-/*
-        if(!fclose($this->errors)){
-            $this->critical('Errors stream closes is fail.');
-        }
-*/
+
+        @fclose($this->errors);
+
         $this->shell = false;
         $this->errors = false;
         return $this;
@@ -437,7 +434,7 @@ class PhpSsh2
         usleep($this->wait);
 		$time = time() + $this->timeout;
 		do {
-			$c = fgetc($this->shell);
+			$c = @fgetc($this->shell);
 
 			if (false === $c) {
 				$this->info("Couldn't find the requested : '" . $this->prompt . "', it was not in the data returned from server : '" . $this->buffer . "'");

@@ -8,6 +8,6 @@
         "ext-mbstring": "*",
         "ext-ssh2": "*"
     },
-    "license": "GNU/LGPL v2.1",
+    "license": "MIT",
     "minimum-stability": "dev"
 }
