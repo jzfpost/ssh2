@@ -1,0 +1,13 @@
+{
+    "name": "jzfpost/ssh2",
+    "description": "SSH2 connection helper",
+    "type": "library",
+    "require": {
+        "php": "^7.1",
+        "psr/log": "^1.1",
+        "ext-mbstring": "*",
+        "ext-ssh2": "*"
+    },
+    "license": "GNU/LGPL v2.1",
+    "minimum-stability": "dev"
+}

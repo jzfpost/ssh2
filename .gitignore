@@ -1,0 +1,9 @@
+# Created by .ignore support plugin (hsz.mobi)
+.idea
+nbproject
+.buildpath
+.project
+.settings
+/vendor/
+Thumbs.db
+composer.lock

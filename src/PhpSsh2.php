@@ -42,8 +42,8 @@ use Psr\Log\LoggerTrait;
  * $phpSsh2->connect($host)
  * 		->authPassword($username, $password)
  * 		->openShell(PhpSsh2::PROMPT_LINUX, 'xterm');
- *      $result = $phpSsh2->send('ls -a', PhpSsh2::PROMPT_LINUX);
- *      $phpSsh2->disconnect();
+ * $result = $phpSsh2->send('ls -a', PhpSsh2::PROMPT_LINUX);
+ * $phpSsh2->disconnect();
  * ```
  */
 class PhpSsh2
@@ -150,17 +150,6 @@ class PhpSsh2
 	 */
 	protected $screenLogging = true;
 	/**
-	 * @var callable call function before ssh2_disconnect will called.
-	 * This function will called by __destruct()
-	 * ```php
-	 * function ($phpSsh2) {
-	 * 		$phpSsh2->send('do something');
-	 * }
-	 * ```
-	 * where '$phpSsh2' refers to this PhpSsh2 class instance
-	 */
-	protected $beforeDisconnect;
-	/**
 	 * @var float Command Execute timestamp
 	 */
 	protected $executeTimestamp;
@@ -223,10 +212,6 @@ class PhpSsh2
 			$this->encoding = $options[ 'encoding' ];
 			$this->info("{property} set to {value} microseconds",
 				[ '{property}' => 'encoding', '{value}' => $this->encoding ]);
-		}
-
-		if(preg_match('/jzf@[^:]+:~\$\s*$/i' , "test\njzf@jzf:~$")){
-			$this->alert('match!');
 		}
 
 		$this->_NULL = chr(0);
@@ -318,9 +303,6 @@ class PhpSsh2
 	public function disconnect(): void
 	{
 		if ($this->isConnected()) {
-			if (is_callable($this->beforeDisconnect)) {
-				call_user_func($this->beforeDisconnect, $this);
-			}
 			$this->closeShell();
 
 			if (@ssh2_disconnect($this->ssh2Connection)) {
