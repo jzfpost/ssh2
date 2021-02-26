@@ -1,4 +1,4 @@
-PHP [SSH2](https://github.com/jzfpost/ssh2) helper.
+PHP [SSH2-client](https://github.com/jzfpost/ssh2) connection helper.
 
 Example usage
 -------------
