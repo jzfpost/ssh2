@@ -24,7 +24,7 @@ namespace jzfpost\ssh2;
  * @category  Net
  * @version 0.0.1
  *
- * @license   GNU/LGPL v2.1
+ * @license   MIT
  *
  * @link      http://www.php.net/manual/en/book.ssh2.php
  * @link      https://github.com/bubba-h57/PHP-SSH2
@@ -473,7 +473,7 @@ class PhpSsh2
 			}
 		} while ($c !== $this->_NULL || $c !== $this->_DC1);
 
-		$this->info("Data transmition is over");
+		$this->info("Data transmission is over");
 	}
 
 	/*
@@ -772,7 +772,7 @@ class PhpSsh2
 		}
 		$text = '[' . date('D M d H:i:s Y', time()) . '] ' . $this->host. ' ' . $level . ': ' . $message . PHP_EOL;
 		if ($this->logging) {
-			file_put_contents($this->logging, $text, FILE_APPEND);
+			@file_put_contents($this->logging, $text, FILE_APPEND);
 		}
 		if ($this->screenLogging) {
 			print $text;
@@ -827,19 +827,10 @@ class PhpSsh2
 	{
 		$phpSsh2 = static::class;
 		var_dump($phpSsh2);
-		$msg = sprintf("SSH disconnected with reason code [%d] and message: %s\n", $reason, $message);
+		$msg = sprintf("SSH disconnected with reason code [%d] and message: %s; lang: %s;\n", $reason, $message, $language);
 
 		throw new Ssh2Exception($msg);
 	}
-
-	protected function exception($type, $msg, $context)
-    {
-        if ($type === 'critical') {
-            $this->critical($msg, $context);
-            $this->disconnect();
-            throw new Ssh2Exception("Failed authentication on host $this->host:$this->port");
-        }
-    }
 
 	/**
 	 * Destructor. Cleans up socket connection and command buffer.
