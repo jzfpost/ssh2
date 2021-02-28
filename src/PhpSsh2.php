@@ -60,9 +60,9 @@ class PhpSsh2
 	public const PROMPT_HUAWEI = '<~?[\w._-]+>';
 	public const PROMPT_HUAWEI_SY = '[~?[\w._-]+]';
 
-    /**
-     * Commands turn off pagination on terminal
-     */
+	/**
+	 * Commands turn off pagination on terminal
+	 */
 	public const TERMINAL_PAGINATION_OFF_CISCO = 'terminal length 0';
 	public const TERMINAL_PAGINATION_OFF_HUAWEI = 'screen-length 0 temporary';
 
@@ -170,7 +170,6 @@ class PhpSsh2
 	 * Constructor.
 	 *
 	 * @param array $options
-	 *
 	 * @throws Ssh2Exception
 	 */
 	public function __construct(array $options = [])
@@ -284,7 +283,7 @@ class PhpSsh2
 	 */
 	public function isConnected(): bool
 	{
-	    return is_resource($this->ssh2Connection);
+		return is_resource($this->ssh2Connection);
 	}
 
 	/**
@@ -292,9 +291,9 @@ class PhpSsh2
 	 * @return false|string
 	 */
 	public function getErrors()
-    {
-        return fgets($this->errors, 8192);
-    }
+	{
+		return fgets($this->errors, 8192);
+	}
 
 	/**
 	 * Closes SSH socket.
@@ -369,9 +368,9 @@ class PhpSsh2
 		$this->errors = @ssh2_fetch_stream($this->shell, SSH2_STREAM_STDERR);
 
 		if (false === @stream_set_blocking($this->shell, true)) {
-            $this->critical("Unable to set blocking shell at {host}:{port} connection", ['{host}' => $this->host, '{port}' => $this->port]);
-            throw new Ssh2Exception("Unable to set blocking shell at $this->host:$this->port connection");
-        }
+			$this->critical("Unable to set blocking shell at {host}:{port} connection", ['{host}' => $this->host, '{port}' => $this->port]);
+			throw new Ssh2Exception("Unable to set blocking shell at $this->host:$this->port connection");
+		}
 
 		$this->readTo($prompt);
 		$this->clearBuffer();
@@ -379,22 +378,22 @@ class PhpSsh2
 		return $this;
 	}
 
-    /**
-     * @return self
-     */
+	/**
+	 * @return self
+	 */
 	public function closeShell(): self
-    {
+	{
 
-        if(!@fclose($this->shell)) {
-            $this->critical('Shell stream closes is fail.');
-        }
+		if(!@fclose($this->shell)) {
+			$this->critical('Shell stream closes is fail.');
+		}
 
-        @fclose($this->errors);
+		@fclose($this->errors);
 
-        $this->shell = false;
-        $this->errors = false;
-        return $this;
-    }
+		$this->shell = false;
+		$this->errors = false;
+		return $this;
+	}
 
 	/**
 	 * Clears internal command buffer.
@@ -425,13 +424,13 @@ class PhpSsh2
 			throw new Ssh2Exception("Failed connecting to host $this->host:$this->port");
 		}
 
-        if (false === $this->shell) {
-            $this->critical("Unable to establish shell at {host}:{port} connection", ['{host}' => $this->host, '{port}' => $this->port]);
-            throw new Ssh2Exception("Unable to establish shell at $this->host:$this->port connection");
-        }
+		if (false === $this->shell) {
+			$this->critical("Unable to establish shell at {host}:{port} connection", ['{host}' => $this->host, '{port}' => $this->port]);
+			throw new Ssh2Exception("Unable to establish shell at $this->host:$this->port connection");
+		}
 
 		$this->clearBuffer();
-        usleep($this->wait);
+		usleep($this->wait);
 		$time = time() + $this->timeout;
 		do {
 			$c = @fgetc($this->shell);
@@ -575,7 +574,7 @@ class PhpSsh2
 	}
 
 	/**
-	 * Trim the prompt line of multiline text
+	 * Trim the prompt string of multiline text
 	 * @param string $text
 	 * @param string $prompt
 	 * @return string
@@ -640,7 +639,7 @@ class PhpSsh2
 	/**
 	 * Return an array of accepted authentication methods.
 	 * Return true if the server does accept "none" as an authentication
-     * Call this method before auth
+	 * Call this method before auth
 	 * @param string $username
 	 * @return array|bool
 	 */
@@ -751,7 +750,7 @@ class PhpSsh2
 
 	/**
 	 * @param int $timeout in seconds.
-     * @return void
+	 * @return void
 	 */
 	public function setTimeout(int $timeout): void
 	{
@@ -779,33 +778,33 @@ class PhpSsh2
 		}
 	}
 
-    /**
-     * @param $message
-     * @throws Ssh2Exception
-     */
+	/**
+	 * @param $message
+	 * @throws Ssh2Exception
+	 */
 	public static function ignore_cb(string $message): void
 	{
 		var_dump($message);
 		throw new Ssh2Exception($message);
 	}
 
-    /**
-     * @param $packet
-     * @return bool
-     * @throws Ssh2Exception
-     */
+	/**
+	 * @param $packet
+	 * @return bool
+	 * @throws Ssh2Exception
+	 */
 	public static function macerror_cb($packet): bool
 	{
 		var_dump($packet);
-        throw new Ssh2Exception("MAC error");
+		throw new Ssh2Exception("MAC error");
 	}
 
-    /**
-     * @param $message
-     * @param $language
-     * @param $always_display
-     * @throws Ssh2Exception
-     */
+	/**
+	 * @param $message
+	 * @param $language
+	 * @param $always_display
+	 * @throws Ssh2Exception
+	 */
 	public static function debug_cb($message, $language, $always_display): void
 	{
 		var_dump(func_get_args());
