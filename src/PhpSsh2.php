@@ -55,10 +55,8 @@ class PhpSsh2
 	 */
 	public const PROMPT_LINUX = '{username}@[^:]+:~\$';
 	public const PROMPT_LINUX_SU = 'root@[^:]+:[^#]+#';
-	public const PROMPT_CISCO = '[\w._-]+>';
-	public const PROMPT_CISCO_EN = '[\w._-]+#';
-	public const PROMPT_HUAWEI = '<~?[\w._-]+>';
-	public const PROMPT_HUAWEI_SY = '[~?[\w._-]+]';
+	public const PROMPT_CISCO = '[\w._-]+[#>]';
+	public const PROMPT_HUAWEI = '[[<]~?[\w._-]+[]>]';
 
 	/**
 	 * Commands turn off pagination on terminal
@@ -148,7 +146,7 @@ class PhpSsh2
 	/**
 	 * @var bool Print logs
 	 */
-	protected $screenLogging = true;
+	protected $screenLogging = false;
 	/**
 	 * @var float Command Execute timestamp
 	 */
@@ -178,7 +176,13 @@ class PhpSsh2
 			throw new Ssh2Exception("ssh2_connect function doesn't exist! Need install \"ext-ssh2\" php module.");
 		}
 
-		$this->info('Logging start');
+		if (isset($options[ 'screenLogging' ])) {
+            $this->screenLogging = $options[ 'screenLogging' ];
+        }
+        if (isset($options[ 'logging' ])) {
+            $this->logging = $options['logging'];
+            $this->info('Logging start');
+        }
 
 		if (isset($options[ 'host' ])) {
 			$this->host = $options[ 'host' ];
@@ -187,16 +191,6 @@ class PhpSsh2
 		if (isset($options[ 'port' ])) {
 			$this->host = $options[ 'port' ];
 			$this->info("{property} set to {value}", [ '{property}' => 'port', '{value}' => $this->port ]);
-		}
-		if (isset($options[ 'logging' ])) {
-			$this->logging = $options[ 'logging' ];
-			$this->info("{property} set to {value}",
-				[ '{property}' => 'logging', '{value}' => $this->logging === false ? 'disabled' : $this->logging ]);
-		}
-		if (isset($options[ 'screenLogging' ])) {
-			$this->screenLogging = $options[ 'screenLogging' ];
-			$this->info("{property} set to {value}",
-				[ '{property}' => 'screenLogging', '{value}' => $this->screenLogging ? 'enabled' : 'disabled' ]);
 		}
 		if (isset($options[ 'timeout' ])) {
 			$this->timeout = $options[ 'timeout' ];
@@ -221,6 +215,7 @@ class PhpSsh2
 		$this->_DONT = chr(254);
 		$this->_IAC = chr(255);
 		$this->_ESC = chr(27);
+
 	}
 
 	/**
@@ -327,7 +322,7 @@ class PhpSsh2
 	 * @return self
 	 * @throws Ssh2Exception
 	 */
-	public function openShell(string $prompt, string $termType = 'dumb', array $env = null, int $width = 240, int $height = 40, int $width_height_type = SSH2_TERM_UNIT_CHARS): self
+	public function openShell(string $prompt, string $termType = 'dumb', array $env = null, int $width = 240, int $height = 240, int $width_height_type = SSH2_TERM_UNIT_CHARS): self
 	{
 		if (is_resource($this->shell)) {
 			throw new Ssh2Exception("Already opened shell at $this->host:$this->port connection");
@@ -434,7 +429,6 @@ class PhpSsh2
 		$time = time() + $this->timeout;
 		do {
 			$c = @fgetc($this->shell);
-
 			if (false === $c) {
 				$this->info("Couldn't find the requested : '" . $this->prompt . "', it was not in the data returned from server : '" . $this->buffer . "'");
 				throw new Ssh2Exception("Couldn't find the requested : '" . $this->prompt . "', it was not in the data returned from server : '" . $this->buffer . "'");
@@ -451,24 +445,24 @@ class PhpSsh2
 
 			$this->buffer .= $c;
 
-			if ($this->logging) {
-				@file_put_contents($this->logging, $c, FILE_APPEND);
-			}
+			$this->log('none', $c);
 
 			if (preg_match("/{$this->prompt}\s?$/i", $this->buffer)) {
+                $this->log('none', PHP_EOL);
 				if (is_float($this->executeTimestamp)) {
 					$this->info("Command execution time is {timestamp} msec", ['{timestamp}' => microtime(true) - $this->executeTimestamp]);
 				}
 				$this->history .= $this->buffer;
 				$this->debug($this->buffer);
-				return;
+				break;
 			}
 
 			if ($time < time()) {
+                $this->log('none', PHP_EOL);
 				$this->history .= $this->buffer;
 				$this->debug($this->buffer);
 				$this->info("Timeout release before the prompt was read");
-				return;
+				break;
 			}
 		} while ($c !== $this->_NULL || $c !== $this->_DC1);
 
@@ -769,7 +763,18 @@ class PhpSsh2
 		if (!empty($context)) {
 			$message = str_replace(array_keys($context), array_values($context), $message);
 		}
-		$text = '[' . date('D M d H:i:s Y', time()) . '] ' . $this->host. ' ' . $level . ': ' . $message . PHP_EOL;
+		if ($level === 'none') {
+		    $text = $message;
+        } elseif ($level === 'debug') {
+            $text = '[' . date('D M d H:i:s Y', time()) . '] ' . $this->host . ' ' . $level . ': '
+                . PHP_EOL
+                . '----------------' . PHP_EOL
+                . $message
+                . PHP_EOL
+                . '----------------' . PHP_EOL;
+        } else {
+            $text = '[' . date('D M d H:i:s Y', time()) . '] ' . $this->host . ' ' . $level . ': ' . $message . PHP_EOL;
+        }
 		if ($this->logging) {
 			@file_put_contents($this->logging, $text, FILE_APPEND);
 		}
