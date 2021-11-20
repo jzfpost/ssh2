@@ -2,6 +2,7 @@
 
 namespace jzfpost\ssh2;
 
+
 /**
  * SSH2 driver class.
  *
@@ -561,7 +562,7 @@ class PhpSsh2
         $buffer = $this->trimFirstLine(trim($this->buffer));
         $buffer = $this->trimPrompt($buffer, $this->prompt);
 
-        return $buffer;
+        return utf8_encode($buffer);
     }
 
     /**
@@ -760,12 +761,15 @@ class PhpSsh2
     }
 
     /**
-     * @param string $level
+     * @param mixed $level
      * @param string $message
      * @param array $context
-     * @return void
+     *
+	 * @return void
+	 *
+	 * @throws \Psr\Log\InvalidArgumentException
      */
-    public function log(string $level, string $message, array $context = array()): void
+    public function log($level, $message, array $context = array()): void
     {
         if (!empty($context)) {
             $message = str_replace(array_keys($context), array_values($context), $message);
