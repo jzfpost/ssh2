@@ -2,8 +2,14 @@
     "name": "jzfpost/ssh2",
     "description": "SSH2 connection helper",
     "type": "library",
+    "authors": [
+        {
+            "name": "Eugenith",
+            "email": "jzf@mail.ru"
+        }
+    ],
     "require": {
-        "php": "^7.1",
+        "php": "8.*",
         "psr/log": "^1.1",
         "ext-mbstring": "*",
         "ext-ssh2": "*"
