@@ -1,12 +1,11 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace jzfpost\ssh2;
-
 
 /**
  * SSH2 driver class.
  *
- * PHP version ^7.1
+ * PHP version ^8.*
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +22,7 @@ namespace jzfpost\ssh2;
  * Foundation, Inc., 59 Temple Place, Suite 330,Boston,MA 02111-1307 USA
  *
  * @category  Net
- * @version 0.0.1
+ * @version 0.0.2
  *
  * @license   MIT
  *
@@ -66,37 +65,26 @@ class PhpSsh2
     public const TERMINAL_PAGINATION_OFF_HUAWEI = 'screen-length 0 temporary';
 
     /**
-     * @var bool
+     * @var string URL or IP-address
      */
-    public $isAuthorised = false;
+    protected string $host = 'localhost';
     /**
-     * @var string the received data buffer
+     * @var int the TCP port to connection
      */
-    protected $buffer;
+    protected int $port = 22;
     /**
-     * @var null|array
+     * @var string regular expression prompt
      */
-    protected $env;
+    protected string $prompt = '~$';
+
+    public bool $isAuthorised = false;
+    protected string $buffer;
+    protected ?array $env;
     /**
      * @var resource|false errors
      */
     protected $errors = false;
-    /**
-     * @var string
-     */
-    protected $history = '';
-    /**
-     * @var string URL or IP-address
-     */
-    protected $host = 'localhost';
-    /**
-     * @var int the TCP port to connection
-     */
-    protected $port = 22;
-    /**
-     * @var string shell prompt
-     */
-    protected $prompt = '~$';
+    protected string $history = '';
     /**
      * @var resource|false shell
      */
@@ -109,71 +97,71 @@ class PhpSsh2
      * We use the dumb terminal to avoid excessive escape characters in windows SSH sessions.
      * @var string
      */
-    protected $term_type = 'dumb';
+    protected string $term_type = 'dumb';
     /**
      * @var int the response timeout in seconds (s)
      */
-    protected $timeout = 10;
+    protected mixed $timeout = 10;
     /**
      * @var string Remote user name.
      */
-    protected $username;
+    protected string $username;
     /**
      * Delay execution in micro seconds (ms)
      * @var int
      */
-    protected $wait = 500;
+    protected int $wait = 500;
     /**
      * @var int Width of the virtual terminal
      */
-    protected $width = 240;
+    protected int $width = 240;
     /**
      * @var int Height of the virtual terminal
      */
-    protected $height = 40;
+    protected int $height = 40;
     /**
      * @var string|false Encoding characters
      */
-    protected $encoding = false;
+    protected string|false $encoding = false;
     /**
      * should be one of SSH2_TERM_UNIT_CHARS or SSH2_TERM_UNIT_PIXELS
      * @var int SSH2_TERM_UNIT_CHARS|SSH2_TERM_UNIT_PIXELS
      */
-    protected $width_height_type = SSH2_TERM_UNIT_CHARS;
+    protected int $width_height_type = SSH2_TERM_UNIT_CHARS;
     /**
-     * @var string|bool file path for logging
+     * @var string|false file path for logging
      */
-    protected $logging = false;
+    protected string|false $logging = false;
     /**
      * @var bool Print logs
      */
-    protected $screenLogging = false;
+    protected bool $screenLogging = false;
     /**
      * Format a local time/date
      * @var string
      */
-    protected $dateFormat = 'Y M d H:i:s';
+    protected string $dateFormat = 'Y M d H:i:s';
     /**
-     * @var float Command Execute timestamp
+     * @var float|null Command Execute timestamp
      */
-    protected $executeTimestamp;
+    protected ?float $executeTimestamp = null;
 
     /**
      * These are telnet options characters that might be of use for us.
      */
-    protected $_NULL;
-    protected $_DC1;
-    protected $_WILL;
-    protected $_WONT;
-    protected $_DO;
-    protected $_DONT;
-    protected $_IAC;
-    protected $_ESC;
+    protected string $_NULL;
+    protected string $_DC1;
+    protected string $_WILL;
+    protected string $_WONT;
+    protected string $_DO;
+    protected string $_DONT;
+    protected string $_IAC;
+    protected string $_ESC;
 
     /**
      * Constructor.
      *
-     * @param array $options
+     * @param array<string> $options
      * @throws Ssh2Exception
      */
     public function __construct(array $options = [])
@@ -229,9 +217,9 @@ class PhpSsh2
     /**
      * Attempts connection to remote host.
      *
-     * @param string $host Host name or IP address
-     * @param int $port [optional] the TCP port to connection
-     * @param array $methods [optional] Methods may be an associative array with any of the ssh2 connect parameters
+     * @param string|null $host Host name or IP address
+     * @param int|null $port [optional] the TCP port to connection
+     * @param array|null $methods [optional] Methods may be an associative array with any of the ssh2 connect parameters
      * $methods = [
      *     'kex' => 'diffie-hellman-group1-sha1, diffie-hellman-group14-sha1, diffie-hellman-group-exchange-sha1',
      *     'hostkey' => 'ssh-rsa, ssh-dss',
@@ -246,7 +234,7 @@ class PhpSsh2
      *         'mac' => 'hmac-sha1, hmac-sha1-96, hmac-ripemd160, hmac-ripemd160@openssh.com'
      *     ]
      * ]
-     * @param array $callbacks [optional] May be an associative array with any of the ssh2 connect parameters
+     * @param array|null $callbacks [optional] May be an associative array with any of the ssh2 connect parameters
      * $callbacks = [
      *     'ignore' => 'self::ignore_cb($message)',
      *     'debug' => 'self::debug_cb($message, $language, $always_display)',
@@ -293,7 +281,7 @@ class PhpSsh2
      *
      * @return false|string
      */
-    public function getErrors()
+    public function getErrors(): bool|string
     {
         return fgets($this->errors, 8192);
     }
@@ -310,7 +298,7 @@ class PhpSsh2
             if (@ssh2_disconnect($this->ssh2Connection)) {
                 $this->ssh2Connection = false;
                 $this->isAuthorised = false;
-                $this->buffer = null;
+                $this->buffer = '';
                 $this->info('Disconnect completed');
             } else {
                 $this->critical('Disconnection fail');
@@ -323,7 +311,7 @@ class PhpSsh2
      *
      * @param string $prompt
      * @param string $termType The Terminal Type we will be using
-     * @param array $env Name/Value array of environment variables to set
+     * @param array|null $env Name/Value array of environment variables to set
      * @param int $width Width of the terminal
      * @param int $height Height of the terminal
      * @param int $width_height_type
@@ -410,7 +398,7 @@ class PhpSsh2
 
     /**
      * Reads characters from the shell and adds them to command buffer.
-     * Handles telnet control characters. Stops when prompt is ecountered.
+     * Handles telnet control characters. Stops when prompt is encountered.
      *
      * @param string $prompt
      * @return void
@@ -455,7 +443,7 @@ class PhpSsh2
 
             $this->log('none', $c);
 
-            if (preg_match("/{$this->prompt}\s?$/i", $this->buffer)) {
+            if (preg_match("/$this->prompt\s?$/i", $this->buffer)) {
                 $this->log('none', PHP_EOL);
                 if (is_float($this->executeTimestamp)) {
                     $this->info("Command execution time is {timestamp} msec", ['{timestamp}' => microtime(true) - $this->executeTimestamp]);
@@ -492,7 +480,7 @@ class PhpSsh2
      * @param string $c
      * @return bool
      */
-    private function negotiateTelnetOptions($c): bool
+    private function negotiateTelnetOptions(string $c): bool
     {
         switch ($c) {
             case $this->_IAC:
@@ -707,12 +695,12 @@ class PhpSsh2
      * Authenticate over SSH
      * @param string $type none, password, pubkey or hostbased
      * @param string $username
-     * @param string $password
-     * @param string $hostname
-     * @param string $pubkeyFile
-     * @param string $privkeyFile
-     * @param string $passphrase
-     * @param string $local_username
+     * @param string|null $password
+     * @param string|null $hostname
+     * @param string|null $pubkeyFile
+     * @param string|null $privkeyFile
+     * @param string|null $passphrase
+     * @param string|null $local_username
      * @return self
      * @throws Ssh2Exception
      */
@@ -813,12 +801,12 @@ class PhpSsh2
     }
 
     /**
-     * @param $message
-     * @param $language
-     * @param $always_display
+     * @param string $message
+     * @param string $language
+     * @param string $always_display
      * @throws Ssh2Exception
      */
-    public static function debug_cb($message, $language, $always_display): void
+    public static function debug_cb(string $message, string $language, string $always_display): void
     {
         $msg = sprintf("Debug msg: %s\nLanguage: %s\nDisplay: %s\n", $message, $language, $always_display);
         throw new Ssh2Exception($msg);
@@ -832,7 +820,7 @@ class PhpSsh2
      * @param string $language
      * @throws Ssh2Exception
      */
-    public static function disconnect_cb($reason, $message, $language): void
+    public static function disconnect_cb(string $reason, string $message, string $language): void
     {
         $msg = sprintf("Server send disconnect message type [%d] and message: %s; lang: %s;\n", $reason, $message, $language);
         throw new Ssh2Exception($msg);
