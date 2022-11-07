@@ -30,6 +30,7 @@ namespace jzfpost\ssh2;
  * @link      https://github.com/bubba-h57/PHP-SSH2
  */
 
+use Psr\Log\InvalidArgumentException;
 use Psr\Log\LoggerTrait;
 
 /**
@@ -161,7 +162,7 @@ class PhpSsh2
     /**
      * Constructor.
      *
-     * @param array<string> $options
+     * @param array<int,string> $options
      * @throws Ssh2Exception
      */
     public function __construct(array $options = [])
@@ -755,7 +756,7 @@ class PhpSsh2
      *
 	 * @return void
 	 *
-	 * @throws \Psr\Log\InvalidArgumentException
+	 * @throws InvalidArgumentException
      */
     public function log($level, $message, array $context = array()): void
     {
