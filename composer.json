@@ -2,6 +2,7 @@
     "name": "jzfpost/ssh2",
     "description": "SSH2 connection helper",
     "type": "library",
+    "minimum-stability": "dev",
     "authors": [
         {
             "name": "Eugenith",
@@ -14,6 +15,5 @@
         "ext-mbstring": "*",
         "ext-ssh2": "*"
     },
-    "license": "MIT",
-    "minimum-stability": "dev"
+    "license": "MIT"
 }
