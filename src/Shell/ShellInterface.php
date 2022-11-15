@@ -11,9 +11,9 @@ interface ShellInterface
 {
     /**
      * @param string $prompt
-     * @return bool
+     * @return ShellInterface
      */
-    public function open(string $prompt): bool;
+    public function open(string $prompt): ShellInterface;
     public function close():void;
 
     /**

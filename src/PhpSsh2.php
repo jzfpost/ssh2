@@ -9,14 +9,12 @@ namespace jzfpost\ssh2;
  *
  * @category  Net
  * @requires ext-ssh2
- * @version 0.2.2
+ * @version 0.3.0
  *
  * @license   MIT
  *
  * @link      http://www.php.net/manual/en/book.ssh2.php
- *
  */
-
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;
 use jzfpost\ssh2\Conf\Configuration;

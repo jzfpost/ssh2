@@ -68,7 +68,7 @@ final class Shell implements ShellInterface
     /**
      * @inheritDoc
      */
-    public function open(string $prompt): bool
+    public function open(string $prompt): ShellInterface
     {
         if (is_resource($this->shell)) {
             throw new Ssh2Exception("Already opened shell at $this->connection connection");
@@ -107,7 +107,7 @@ final class Shell implements ShellInterface
                 $this->readTo($prompt);
                 $this->clearBuffer();
 
-                return true;
+                return $this;
             }
         }
         $this->critical("Unable to establish shell at {host}:{port} connection");
