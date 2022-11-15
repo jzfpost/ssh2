@@ -3,13 +3,27 @@
 namespace jzfpost\ssh2;
 
 /**
- * SSH2 helper class.
+ * SSH2 driver class.
  *
  * PHP version ^8.1
  *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330,Boston,MA 02111-1307 USA
+ *
  * @category  Net
  * @requires ext-ssh2
- * @version 0.2.2
+ * @version 0.1.2
  *
  * @license   MIT
  *
@@ -17,17 +31,14 @@ namespace jzfpost\ssh2;
  *
  */
 
-use JetBrains\PhpStorm\ArrayShape;
-use JetBrains\PhpStorm\Pure;
 use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Exception\Ssh2Exception;
 use jzfpost\ssh2\Auth\AuthInterface;
-use jzfpost\ssh2\Shell\Shell;
 use Psr\Log\LoggerTrait;
 
+use function array_key_exists;
 use function function_exists;
 use function is_resource;
-use function strlen;
 
 
 /**
@@ -40,29 +51,25 @@ use function strlen;
  *  ->setLoggingFileName("/var/log/ssh2/log.txt")
  *  ->setDebugMode();
  *
- * $phpSsh2 = new PhpSsh2($conf);
+ * $phpSsh2 = new PhpSsh2(['timeout' => 10, 'wait' => '3500', 'logging' => '/var/log/ssh2/log.txt', 'screenLogging' => true]);
  * $phpSsh2->connect($host)
- *        ->authPassword($username, $password)
- *        ->openShell(PhpSsh2::PROMPT_LINUX, 'xterm');
+ * 		->authPassword($username, $password)
+ * 		->openShell(PhpSsh2::PROMPT_LINUX, 'xterm');
  * $result = $phpSsh2->send('ls -a', PhpSsh2::PROMPT_LINUX);
  * $phpSsh2->disconnect();
  * ```
- *
- * @property-read non-empty-string $host
- * @property-read positive-int $port
- * @property-read positive-int $timeout
- * @property-read positive-int $wait
- * @property-read string|false $loggingFileName
- * @property-read string|false $encoding
- * @property-read array $env
- * @property-read string $dateFormat
- * @property-read array $methods
- * @property-read array $callbacks
- *
  */
-class PhpSsh2 implements Ssh2Interface
+final class PhpSsh2
 {
     use LoggerTrait;
+
+    /**
+     * RegExp prompts
+     */
+    public const PROMPT_LINUX = '{username}@[^:]+:~\$';
+    public const PROMPT_LINUX_SU = 'root@[^:]+:[^#]+#';
+    public const PROMPT_CISCO = '[\w._-]+[#>]';
+    public const PROMPT_HUAWEI = '[[<]~?[\w._-]+[]>]';
 
     /**
      * Commands turn off pagination on terminal
@@ -70,65 +77,212 @@ class PhpSsh2 implements Ssh2Interface
     public const TERMINAL_PAGINATION_OFF_CISCO = 'terminal length 0';
     public const TERMINAL_PAGINATION_OFF_HUAWEI = 'screen-length 0 temporary';
 
-    protected Configuration $configuration;
+    /**
+     * @var string URL or IP-address
+     */
+    protected string $host = 'localhost';
+    /**
+     * @var positive-int the TCP port to connection
+     */
+    protected int $port = 22;
+    /**
+     * @var string regular expression prompt
+     */
+    protected string $prompt = '~$';
 
-    public AuthInterface $auth;
     public bool $isAuthorised = false;
+    protected string $buffer = '';
+    protected string $history = '';
 
+    /**
+     * @var array
+     * @psalm-var array
+     */
+    protected array $env = [null];
+    /**
+     * @var resource|closed-resource|false errors
+     */
+    protected mixed $errors = false;
+    /**
+     * @var resource|closed-resource|false shell
+     */
+    protected mixed $shell = false;
     /**
      * @var resource|closed-resource|false the SSH2 resource
      */
-    protected mixed $sshConnection = false;
+    protected mixed $ssh2Connection = false;
     /**
-     * @var resource|closed-resource|false the shell emulator
+     * We use the dumb terminal to avoid excessive escape characters in windows SSH sessions.
+     * @var string
      */
-    protected mixed $shell = false;
+    protected string $term_type = 'dumb';
+    /**
+     * @var positive-int the response timeout in seconds (s)
+     */
+    protected int $timeout = 10;
     /**
      * @var string Remote user name.
      */
     protected string $username = 'username';
     /**
+     * Delay execution in microseconds (ms)
+     * @var positive-int
+     */
+    protected int $wait = 3500;
+    /**
+     * @var positive-int Width of the virtual terminal
+     */
+    protected int $width = 240;
+    /**
+     * @var positive-int Height of the virtual terminal
+     */
+    protected int $height = 40;
+    /**
+     * @var non-empty-string|false Encoding characters
+     */
+    protected string|false $encoding = false;
+    /**
+     * should be one of SSH2_TERM_UNIT_CHARS or SSH2_TERM_UNIT_PIXELS
+     * @var int SSH2_TERM_UNIT_CHARS|SSH2_TERM_UNIT_PIXELS
+     */
+    protected int $width_height_type = SSH2_TERM_UNIT_CHARS;
+    /**
+     * @var non-empty-string|false file path for logging
+     */
+    protected string|false $logging = false;
+    /**
+     * @var bool Print logs
+     */
+    protected bool $screenLogging = false;
+    /**
+     * Format a local time/date
+     * @var string
+     */
+    protected string $dateFormat = 'Y M d H:i:s';
+    /**
      * @var float|null Command Execute timestamp
      */
-    public ?float $executeTimestamp = null;
+    protected ?float $executeTimestamp = null;
 
-    public function __construct(Configuration $configuration = new Configuration())
+    /**
+     * These are telnet options characters that might be of use for us.
+     */
+    protected string $_NULL;
+    protected string $_DC1;
+    protected string $_WILL;
+    protected string $_WONT;
+    protected string $_DO;
+    protected string $_DONT;
+    protected string $_IAC;
+    protected string $_ESC;
+
+    /**
+     * Constructor.
+     *
+     * @param array{screenLogging?: bool, dateFormat?: string, logging?: false|non-empty-string, timeout?: positive-int, wait?: positive-int, encoding?: false|non-empty-string} $options
+     * @throws Ssh2Exception
+     */
+    public function __construct(array $options = [], Configuration $configuration = new Configuration())
     {
-        $this->configuration = $configuration;
-
         if (!function_exists('ssh2_connect')) {
             throw new Ssh2Exception("ssh2_connect function doesn't exist! Please install \"ext-ssh2\" php module.");
         }
 
-        $this->info($configuration->isDebugMode() ? "DEBUG mode is ON" : "DEBUG mode is OFF");
-        $this->info($this->loggingFileName ? "LOGGING start to file '{value}'" : 'LOGGING set to OFF', ['{value}' => $this->loggingFileName]);
-        $this->info("{property} set to {value} seconds", ['{property}' => 'TIMEOUT', '{value}' => (string) $this->timeout]);
-        $this->info("{property} set to {value} microseconds", ['{property}' => 'WAIT', '{value}' => (string) $this->wait]);
-        $this->info($this->encoding ? "{property} set to '{value}'" : "{property} set to OFF",
-            [
-                '{property}' => 'ENCODING',
-                '{value}' => $this->encoding
-            ]
-        );
+        if (array_key_exists('screenLogging', $options)) {
+            $this->screenLogging = $options['screenLogging'];
+        }
+
+        if (array_key_exists('dateFormat', $options)) {
+            $this->dateFormat = $options['dateFormat'];
+        }
+
+        if (array_key_exists('logging', $options)) {
+            $this->logging = $options['logging'];
+        }
+        $this->info('Logging start');
+
+        if (array_key_exists('timeout', $options)) {
+            $this->timeout = $options['timeout'];
+        }
+        $this->info("{property} set to {value} seconds", ['{property}' => 'timeout', '{value}' => (string) $this->timeout]);
+
+        if (array_key_exists('wait', $options)) {
+            $this->wait = $options['wait'];
+        }
+        $this->info("{property} set to {value} microseconds", ['{property}' => 'wait', '{value}' => (string) $this->wait]);
+
+        if (array_key_exists('encoding', $options)) {
+            $this->encoding = $options['encoding'];
+        }
+        if ($this->encoding) {
+            $this->info("{property} set to {value} microseconds", ['{property}' => 'encoding', '{value}' => $this->encoding]);
+        }
+
+        $this->_NULL = chr(0);
+        $this->_DC1 = chr(17);
+        $this->_WILL = chr(251);
+        $this->_WONT = chr(252);
+        $this->_DO = chr(253);
+        $this->_DONT = chr(254);
+        $this->_IAC = chr(255);
+        $this->_ESC = chr(27);
 
         register_shutdown_function(array($this, 'disconnect'));
     }
 
-    public function connect(): self
+    /**
+     * Attempts connection to remote host.
+     *
+     * @param string $host Host name or IP address
+     * @param positive-int $port [optional] the TCP port to connection
+     * @param array<array-key, string|array<array-key, string>> $methods [optional] Methods may be an associative array with any of the ssh2 connect parameters
+     * $methods = [
+     *     'kex' => 'diffie-hellman-group1-sha1, diffie-hellman-group14-sha1, diffie-hellman-group-exchange-sha1',
+     *     'hostkey' => 'ssh-rsa, ssh-dss',
+     *     'client_to_server' => [
+     *         'crypt' => 'rijndael-cbc@lysator.liu.se, aes256-cbc, aes192-cbc, aes128-cbc, 3des-cbc, blowfish-cbc, cast128-cbc, arcfour',
+     *         'comp' => 'zlib|none',
+     *         'mac' => 'hmac-sha1, hmac-sha1-96, hmac-ripemd160, hmac-ripemd160@openssh.com'
+     *      ]
+     *     'server_to_client' => [
+     *         'crypt' => 'rijndael-cbc@lysator.liu.se, aes256-cbc, aes192-cbc, aes128-cbc, 3des-cbc, blowfish-cbc, cast128-cbc, arcfour',
+     *         'comp' => 'zlib|none',
+     *         'mac' => 'hmac-sha1, hmac-sha1-96, hmac-ripemd160, hmac-ripemd160@openssh.com'
+     *     ]
+     * ]
+     * @param array<array-key, callable> $callbacks [optional] May be an associative array with any of the ssh2 connect parameters
+     * $callbacks = [
+     *     'ignore' => 'self::ignore_cb($message)',
+     *     'debug' => 'self::debug_cb($message, $language, $always_display)',
+     *     'macerror' => 'self::macerror_cb($packet)', //function must return bool
+     *     'disconnect' => 'self::disconnect_cb($reason, $message, $language)'
+     * ]
+     * @return self
+     * @throws Ssh2Exception
+     */
+    public function connect(string $host = 'localhost', int $port = 22, array $methods = [], array $callbacks = []): self
     {
-        if ($this->isConnected()) {
+        if(is_resource($this->ssh2Connection)) {
             $this->disconnect();
-            $this->critical("Connection already exists on host {host}:{port}");
-            throw new Ssh2Exception(sprintf("Connection already exists on %s:%d", $this->host, $this->port));
         }
-
+        $this->host = $host;
+        $this->port = $port;
         $this->info('Trying connection to host {host}:{port}');
 
-        $this->sshConnection = @ssh2_connect($this->host, $this->port, $this->methods, $this->callbacks);
+        if(empty($callbacks)) {
+            $callbacks = [
+                'ignore' => 'Exception\Callback::ignore_cb',
+                'macerror' => 'Exception\Callback::macerror_cb',
+                'disconnect' => 'Exception\Callback::disconnect_cb',
+                'debug' => 'Exception\Callback::debug_cb'
+            ];
+        }
 
-        if (!$this->isConnected()) {
+        $this->ssh2Connection = @ssh2_connect($this->host, $this->port, $methods, $callbacks);
+
+        if (false === $this->ssh2Connection) {
             $this->critical("Connection refused to host {host}:{port}");
-            throw new Ssh2Exception(sprintf("Connection refused to host %s:%d", $this->host, $this->port));
+            throw new Ssh2Exception("Connection refused to host $this->host:$this->port");
         }
 
         $this->info('Connection established success to host {host}:{port}');
@@ -141,15 +295,7 @@ class PhpSsh2 implements Ssh2Interface
      */
     public function isConnected(): bool
     {
-        return is_resource($this->sshConnection);
-    }
-
-    /**
-     * @return bool
-     */
-    public function isShellOpened(): bool
-    {
-        return is_resource($this->shell);
+        return is_resource($this->ssh2Connection);
     }
 
     /**
@@ -158,12 +304,10 @@ class PhpSsh2 implements Ssh2Interface
      */
     public function getErrors(): false|string
     {
-        return $this->shell->getErrors();
-    }
-
-    #[Pure] public function getShell(): Shell
-    {
-        return is_resource($this->shell) ? $this->shell : $this->shell = new Shell($this);
+        if (is_resource($this->errors)) {
+            return fgets($this->errors, 8192);
+        }
+        return false;
     }
 
     /**
@@ -173,16 +317,18 @@ class PhpSsh2 implements Ssh2Interface
     public function disconnect(): void
     {
         if ($this->isConnected()) {
-            $this->getShell()->close();
-//            ssh2_disconnect($this->sshConnection);
-//            if (@ssh2_disconnect($this->sshConnection)) {
-                $this->shell = false;
-                $this->isAuthorised = false;
-                $this->sshConnection = false;
- //               $this->info('Disconnect completed');
- //           } else {
- //               $this->critical('Disconnection fail');
-//            }
+            $this->closeShell();
+
+            if (is_resource($this->ssh2Connection)) {
+                if (@ssh2_disconnect($this->ssh2Connection)) {
+                    $this->ssh2Connection = false;
+                    $this->isAuthorised = false;
+                    $this->buffer = '';
+                    $this->info('Disconnect completed');
+                } else {
+                    $this->critical('Disconnection fail');
+                }
+            }
         }
     }
 
@@ -198,7 +344,6 @@ class PhpSsh2 implements Ssh2Interface
      * @return self
      * @throws Ssh2Exception
      */
-    /*
     public function openShell(string $prompt, string $termType = 'dumb', array $env = [null], int $width = 240, int $height = 240, int $width_height_type = SSH2_TERM_UNIT_CHARS): self
     {
         if (is_resource($this->shell)) {
@@ -216,13 +361,14 @@ class PhpSsh2 implements Ssh2Interface
         $this->info('Trying opening shell at {host}:{port} connection');
 
         $this->term_type = $termType;
+        $this->env = $env;
         $this->width = $width;
         $this->height = $height;
         $this->width_height_type = $width_height_type;
 
-        if (is_resource($this->sshConnection)) {
+        if (is_resource($this->ssh2Connection)) {
             $this->shell = @ssh2_shell(
-                $this->sshConnection,
+                $this->ssh2Connection,
                 $this->term_type,
                 $this->env,
                 $this->width,
@@ -230,7 +376,7 @@ class PhpSsh2 implements Ssh2Interface
                 $this->width_height_type
             );
 
-            if (is_resource($this->shell)) {
+            if(is_resource($this->shell)) {
 
                 $this->info('Shell opened success at {host}:{port} connection');
 
@@ -250,12 +396,10 @@ class PhpSsh2 implements Ssh2Interface
         $this->critical("Unable to establish shell at {host}:{port} connection");
         throw new Ssh2Exception("Unable to establish shell at $this->host:$this->port connection");
     }
-    */
 
     /**
      * @return self
      */
-    /*
     public function closeShell(): self
     {
         if (is_resource($this->shell)) {
@@ -274,19 +418,16 @@ class PhpSsh2 implements Ssh2Interface
         $this->errors = false;
         return $this;
     }
-     */
 
     /**
      * Clears internal command buffer.
      *
      * @return void
      */
-    /*
     private function clearBuffer(): void
     {
         $this->buffer = '';
     }
-    */
 
     /**
      * Reads characters from the shell and adds them to command buffer.
@@ -297,12 +438,10 @@ class PhpSsh2 implements Ssh2Interface
      * @throws Ssh2Exception
      *
      */
-    /*
     private function readTo(string $prompt): void
     {
         $this->prompt = str_replace('{username}', $this->username, $prompt);
-
-        $this->info('Set prompt to "{prompt}"', ['{prompt}' => $prompt]);
+        $this->info('Set prompt to "{prompt}"');
 
         if (false === $this->isConnected()) {
             $this->critical("Failed connecting to host {host}:{port}");
@@ -325,22 +464,22 @@ class PhpSsh2 implements Ssh2Interface
             }
 
             // IANA TELNET OPTIONS
-            if ($this->negotiateTelnetOptions($c)) {
+            if ($this->negotiateTelnetOptions($c)){
                 continue;
             }
 
-            if ($this->encoding) {
+            if($this->encoding) {
                 $c = mb_convert_encoding($c, $this->encoding);
             }
 
             $this->buffer .= $c;
 
-//            $this->log('none', $c);
+            $this->log('none', $c);
 
             if (preg_match("/$this->prompt\s?$/i", $this->buffer)) {
                 $this->log('none', PHP_EOL);
                 if (is_float($this->executeTimestamp)) {
-                    $this->info("Command execution time is {timestamp} msec", ['{timestamp}' => (string)(microtime(true) - $this->executeTimestamp)]);
+                    $this->info("Command execution time is {timestamp} msec", ['{timestamp}' => (string) (microtime(true) - $this->executeTimestamp)]);
                 }
                 $this->history .= $this->buffer;
                 $this->debug($this->buffer);
@@ -358,18 +497,15 @@ class PhpSsh2 implements Ssh2Interface
 
         $this->info("Data transmission is over");
     }
-    */
 
     /**
      * Get the full History of the shell session.
      * @return string
      */
-    /*
     public function getHistory(): string
     {
         return $this->history;
     }
-    */
 
     /**
      * Telnet control character magic.
@@ -377,7 +513,6 @@ class PhpSsh2 implements Ssh2Interface
      * @param string $c
      * @return bool
      */
-    /*
     private function negotiateTelnetOptions(string $c): bool
     {
         switch ($c) {
@@ -399,8 +534,7 @@ class PhpSsh2 implements Ssh2Interface
             case $this->_ESC:
                 $this->debug("_ESC command was received");
                 break;
-            default:
-                return false;
+            default: return false;
         }
         if (is_resource($this->shell)) {
             $opt = fgetc($this->shell);
@@ -408,7 +542,6 @@ class PhpSsh2 implements Ssh2Interface
         }
         return true;
     }
-    */
 
     /**
      * Write command to a socket.
@@ -417,19 +550,17 @@ class PhpSsh2 implements Ssh2Interface
      * @return void
      * @throws Ssh2Exception
      */
-    /*
     public function write(string $cmd): void
     {
-        $host = $this->configuration->getHost();
-        $port = $this->configuration->getPort();
-
         $context = [
+            '{host}' => $this->host,
+            '{port}' => (string) $this->port,
             '{cmd}' => $cmd
         ];
 
         if (!is_resource($this->shell)) {
             $this->critical("Unable to establish shell at {host}:{port} connection");
-            throw new Ssh2Exception("Unable to establish shell at $host:$port connection");
+            throw new Ssh2Exception("Unable to establish shell at $this->host:$this->port connection");
         }
 
         $this->clearBuffer();
@@ -438,10 +569,9 @@ class PhpSsh2 implements Ssh2Interface
         $this->executeTimestamp = microtime(true);
         if ((!fwrite($this->shell, trim($cmd) . PHP_EOL)) < 0) {
             $this->critical("Error writing to shell at {host}:{port} connection");
-            throw new Ssh2Exception("Error writing to shell at $host:$port connection");
+            throw new Ssh2Exception("Error writing to shell at $this->host:$this->port connection");
         }
     }
-    */
 
     /**
      * Write a command to shell and returns the results.
@@ -453,7 +583,6 @@ class PhpSsh2 implements Ssh2Interface
      * @return string Command Results
      * @throws Ssh2Exception
      */
-    /*
     public function send(string $cmd, string $prompt): string
     {
         $this->write($cmd);
@@ -464,19 +593,16 @@ class PhpSsh2 implements Ssh2Interface
 
         return utf8_encode($buffer);
     }
-    */
 
     /**
      * Trim the first line of multiline text
      * @param string $text
      * @return string
      */
-    /*
     public function trimFirstLine(string $text): string
     {
-        return substr($text, (int)strpos($text, PHP_EOL, 1) + 1);
+        return substr($text, (int) strpos($text, PHP_EOL, 1) + 1 );
     }
-    */
 
     /**
      * Trim the prompt string of multiline text
@@ -484,28 +610,28 @@ class PhpSsh2 implements Ssh2Interface
      * @param string $prompt
      * @return string
      */
-    /*
     public function trimPrompt(string $text, string $prompt): string
     {
         return preg_replace("/$prompt\s*$/i", '', $text);
     }
-    */
 
+    /**
+     * Return connection resource
+     * @return false|resource|closed-resource
+     */
     public function getConnection(): mixed
     {
-        return $this->sshConnection;
+        return $this->ssh2Connection;
     }
 
     /**
      * Return shell if it was opened
      * @return false|resource
      */
-    /*
     public function getShell()
     {
         return is_resource($this->shell) ? $this->shell : false;
     }
-    */
 
     /**
      * Return list of negotiated methods
@@ -513,7 +639,7 @@ class PhpSsh2 implements Ssh2Interface
      */
     public function getMethodNegotiated(): array
     {
-        return is_resource($this->sshConnection) ? @ssh2_methods_negotiated($this->sshConnection) : [];
+        return is_resource($this->ssh2Connection) ? @ssh2_methods_negotiated($this->ssh2Connection) : [];
     }
 
     /**
@@ -529,8 +655,8 @@ class PhpSsh2 implements Ssh2Interface
      */
     public function getFingerprint(int $flags = 0): string
     {
-        return is_resource($this->sshConnection)
-            ? @ssh2_fingerprint($this->sshConnection, $flags)
+        return is_resource($this->ssh2Connection)
+            ? @ssh2_fingerprint($this->ssh2Connection, $flags)
             : throw new Ssh2Exception("Not established ssh2 session");;
     }
 
@@ -539,12 +665,10 @@ class PhpSsh2 implements Ssh2Interface
      *
      * @return string Content of the command buffer
      */
-    /*
     public function getBuffer(): string
     {
         return $this->buffer;
     }
-    */
 
     /**
      * Return an array of accepted authentication methods.
@@ -556,8 +680,8 @@ class PhpSsh2 implements Ssh2Interface
      */
     public function getAuthMethods(string $username): bool|array
     {
-        return is_resource($this->sshConnection)
-            ? @ssh2_auth_none($this->sshConnection, $username)
+        return is_resource($this->ssh2Connection)
+            ? @ssh2_auth_none($this->ssh2Connection, $username)
             : throw new Ssh2Exception("Not established ssh2 session");;
     }
 
@@ -632,23 +756,19 @@ class PhpSsh2 implements Ssh2Interface
      */
     public function auth(AuthInterface $auth): self
     {
-        $this->auth = $auth;
-
-        $host = $this->configuration->getHost();
-        $port = $this->configuration->getPort();
-        if (!is_resource($this->sshConnection)) {
+        if (!is_resource($this->ssh2Connection)) {
             $this->critical("Failed connecting to host {host}:{port}");
-            throw new Ssh2Exception("Failed connecting to host $host:$port");
+            throw new Ssh2Exception("Failed connecting to host $this->host:$this->port");
         }
 
-        $this->isAuthorised = $auth->authenticate($this->sshConnection);
-//        $this->username = $auth->getUsername();
+        $this->isAuthorised = $auth->authenticate($this->ssh2Connection);
+        $this->username = $auth->getUsername();
 
         if (false === $this->isAuthorised) {
             $this->critical("Failed authentication on host {host}:{port}");
-            throw new Ssh2Exception("Failed authentication on host $host:$port");
+            throw new Ssh2Exception("Failed authentication on host $this->host:$this->port");
         }
-        $this->info("Authentication success on host $host:$port");
+        $this->info("Password authentication success");
 
         return $this;
     }
@@ -659,19 +779,18 @@ class PhpSsh2 implements Ssh2Interface
     public function log($level, $message, array $context = array()): void
     {
         /** @psalm-var array<array-key, float|int|string> $context */
-
-        $context = array_merge_recursive($this->getLogContext(), $context);
-
-        if (!is_string($level)) {
-            $level = (string)$level;
+        if (empty($context)) {
+            $context = $this->getLogContext();
         }
 
-        $timestamp = date($this->configuration->getDateFormat());
+        if(!is_string($level))
+        {
+            $level = (string) $level;
+        }
+        $timestamp = date($this->dateFormat);
 
         $message = str_replace(array_keys($context), $context, $message);
-        if (strlen($message) > 1) {
-            $message = ucfirst($message);
-        }
+
 
         if ($level === 'none') {
             $text = $message;
@@ -685,10 +804,10 @@ class PhpSsh2 implements Ssh2Interface
         } else {
             $text = sprintf('[%s] %s %s: %s', $timestamp, $this->host, $level, $message) . PHP_EOL;
         }
-        if ($this->loggingFileName) {
-            @file_put_contents($this->loggingFileName, $text, FILE_APPEND);
+        if ($this->logging) {
+            @file_put_contents($this->logging, $text, FILE_APPEND);
         }
-        if ($this->configuration->isDebugMode()) {
+        if ($this->screenLogging) {
             print $text;
         }
     }
@@ -697,7 +816,6 @@ class PhpSsh2 implements Ssh2Interface
      * @return array
      * @psalm-return array<array-key, string>
      */
-    #[ArrayShape(['{host}' => "string", '{port}' => "string", '{wait}' => "string", '{timeout}' => "string"])]
     public function getLogContext(): array
     {
         return [
@@ -705,20 +823,18 @@ class PhpSsh2 implements Ssh2Interface
             '{port}' => (string) $this->port,
             '{wait}' => (string) $this->wait,
             '{timeout}' => (string) $this->timeout,
+            '{prompt}' => $this->prompt
         ];
     }
 
-    public function getConfiguration(): Configuration
+    /**
+     * @param positive-int $timeout in seconds.
+     * @return void
+     */
+    public function setTimeout(int $timeout): void
     {
-        return $this->configuration;
-    }
-
-    public function getUsername(): string
-    {
-        if (isset($this->auth)) {
-            return $this->auth->getUsername();
-        }
-        throw new Ssh2Exception("Not implemented username yet");
+        $this->timeout = $timeout;
+        $this->info("Timeout was set to {timeout} seconds");
     }
 
     /**
@@ -729,25 +845,5 @@ class PhpSsh2 implements Ssh2Interface
     public function __destruct()
     {
         $this->disconnect();
-    }
-
-    public function __get(string $name)
-    {
-        $getter = 'get' . ucfirst($name);
-
-        if (method_exists($this, $getter)) {
-            return $this->$getter();
-        }
-
-        if (method_exists($this->configuration, $getter)) {
-            return $this->configuration->$getter();
-        }
-
-        throw new Ssh2Exception('Getting unknown property: ' . get_class($this) . '::' . $name);
-    }
-
-    public function __toString(): string
-    {
-        return $this->getUsername() . '@' . $this->host . ':' . $this->port;
     }
 }
