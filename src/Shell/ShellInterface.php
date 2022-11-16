@@ -1,11 +1,17 @@
 <?php declare(strict_types=1);
 /**
- * @author jzfpost@gmail . com
+ * @package     jzfpost\ssh2
+ *
+ * @category    Net
+ * @author      Eugenith <jzfpost@gmail.com>
+ * @copyright   jzfpost
+ * @license     see LICENSE.txt
+ * @link        https://giathub/jzfpost/ssh2
+ * @requires    ext-ssh2 version => ^1.3.1
+ * @requires    libssh2 version => ^1.8.0
  */
 
 namespace jzfpost\ssh2\Shell;
-
-use jzfpost\ssh2\PhpSsh2;
 
 interface ShellInterface
 {
@@ -14,7 +20,10 @@ interface ShellInterface
      * @return ShellInterface
      */
     public function open(string $prompt): ShellInterface;
-    public function close():void;
+
+    public function isOpened(): bool;
+
+    public function close(): void;
 
     /**
      * Send command and return output, which reading while $prompt will be read.
@@ -24,4 +33,8 @@ interface ShellInterface
      * @return string
      */
     public function send(string $cmd, string $prompt): string;
+
+    public function getBuffer(): string;
+
+    public function getStderr(): string|false;
 }

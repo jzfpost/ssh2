@@ -1,19 +1,33 @@
 <?php declare(strict_types=1);
 /**
- * @author jzfpost@gmail.com
+ * @package     jzfpost\ssh2
+ *
+ * @category    Net
+ * @author      Eugenith <jzfpost@gmail.com>
+ * @copyright   jzfpost
+ * @license     see LICENSE.txt
+ * @link        https://giathub/jzfpost/ssh2
+ * @requires    ext-ssh2 version => ^1.3.1
+ * @requires    libssh2 version => ^1.8.0
  */
 
 namespace jzfpost\ssh2\Shell;
 
-use JetBrains\PhpStorm\Pure;
+use jzfpost\ssh2\AbstractSshObject;
 use jzfpost\ssh2\Conf\Configuration;
-use jzfpost\ssh2\Exception\Ssh2Exception;
-use jzfpost\ssh2\PhpSsh2;
+use jzfpost\ssh2\Exceptions\SshException;
+use jzfpost\ssh2\Ssh;
 use Psr\Log\LoggerTrait;
 
 final class Shell implements ShellInterface
 {
     use LoggerTrait;
+
+    /**
+     * Commands turn off pagination on terminal
+     */
+    public const TERMINAL_PAGINATION_OFF_CISCO = 'terminal length 0';
+    public const TERMINAL_PAGINATION_OFF_HUAWEI = 'screen-length 0 temporary';
 
     /**
      * RegExp prompts
@@ -23,37 +37,47 @@ final class Shell implements ShellInterface
     public const PROMPT_CISCO = '[\w._-]+[#>]';
     public const PROMPT_HUAWEI = '[[<]~?[\w._-]+[]>]';
 
-//    protected string $prompt = '~$';
+    private AbstractSshObject $ssh;
+    private Configuration $configuration;
     /**
      * @var resource|closed-resource|false errors
      */
-    protected mixed $errors = false;
+    private mixed $stderr = false;
     /**
      * @var resource|closed-resource|false shell
      */
-    protected mixed $shell = false;
+    private mixed $shell = false;
+    private string $buffer = '';
+    private ?float $executeTimestamp = null;
 
-    protected string $buffer = '';
-    protected string $history = '';
-
-    private PhpSsh2 $connection;
-    private Configuration $configuration;
     /**
      * These are telnet options characters that might be of use for us.
      */
-    protected string $_NULL;
-    protected string $_DC1;
-    protected string $_WILL;
-    protected string $_WONT;
-    protected string $_DO;
-    protected string $_DONT;
-    protected string $_IAC;
-    protected string $_ESC;
+    private string $_NULL;
+    private string $_DC1;
+    private string $_WILL;
+    private string $_WONT;
+    private string $_DO;
+    private string $_DONT;
+    private string $_IAC;
+    private string $_ESC;
 
-    #[Pure] public function __construct(PhpSsh2 $connection)
+    public function __construct(AbstractSshObject $ssh)
     {
-        $this->connection = $connection;
-        $this->configuration = $this->connection->getConfiguration();
+        $this->ssh = $ssh;
+        $this->configuration = $this->ssh->getConfiguration();
+
+        $this->info("{property} set to {value}", ['{property}' => 'TERMTYPE', '{value}' => $this->configuration->getTermType()]);
+        $this->info("{property} set to {value}", ['{property}' => 'WIDTH', '{value}' => (string)$this->configuration->getWidth()]);
+        $this->info("{property} set to {value}", ['{property}' => 'HEIGHT', '{value}' => (string)$this->configuration->getHeight()]);
+
+        foreach ($this->configuration->getEnv() as $key => $value) {
+            if ($value === null) {
+                $this->info("{property} set to {value}", ['{property}' => 'ENV', '{value}' => 'NULL']);
+            } else {
+                $this->info("{property} set to {value}", ['{property}' => 'ENV', '{value}' => $key . ' => ' . $value]);
+            }
+        }
 
         $this->_NULL = chr(0);
         $this->_DC1 = chr(17);
@@ -71,38 +95,37 @@ final class Shell implements ShellInterface
     public function open(string $prompt): ShellInterface
     {
         if (is_resource($this->shell)) {
-            throw new Ssh2Exception("Already opened shell at $this->connection connection");
+            throw new SshException("Already opened shell at $this->ssh connection");
         }
-        if (!$this->connection->isConnected()) {
+        if (!$this->ssh->isConnected()) {
             $this->critical("Failed connecting to host {host}:{port}");
-            throw new Ssh2Exception("Failed connecting to host $this->connection");
+            throw new SshException("Failed connecting to host $this->ssh");
         }
-        if (false === $this->connection->isAuthorised) {
+        if (false === $this->ssh->isAuthorised) {
             $this->critical("Failed authorisation on host {host}:{port}");
-            throw new Ssh2Exception("Failed authorisation on host $this->connection");
+            throw new SshException("Failed authorisation on host $this->ssh");
         }
 
         $this->info('Trying opening shell at {host}:{port} connection');
 
-        if ($this->connection->isConnected()) {
+        if ($this->ssh->isConnected()) {
+
             $this->shell = @ssh2_shell(
-                $this->connection->getConnection(),
+                $this->ssh->getSession(),
                 $this->configuration->getTermType(),
                 $this->configuration->getEnv(),
                 $this->configuration->getWidth(),
                 $this->configuration->getHeight(),
                 $this->configuration->getWidthHeightType()
             );
+
             if ($this->isOpened()) {
 
                 $this->info('Shell opened success at {host}:{port} connection');
 
-                $this->errors = @ssh2_fetch_stream($this->shell, SSH2_STREAM_STDERR);
-
-                if (false === @stream_set_blocking($this->shell, true)) {
-                    $this->critical("Unable to set blocking shell at {host}:{port} connection");
-                    throw new Ssh2Exception("Unable to set blocking shell at $this->connection connection");
-                }
+                $this->stderr = ssh2_fetch_stream($this->shell, SSH2_STREAM_STDERR);
+                stream_set_blocking($this->stderr, true);
+                stream_set_blocking($this->shell, true);
 
                 $this->readTo($prompt);
                 $this->clearBuffer();
@@ -111,7 +134,7 @@ final class Shell implements ShellInterface
             }
         }
         $this->critical("Unable to establish shell at {host}:{port} connection");
-        throw new Ssh2Exception("Unable to establish shell at $this->connection connection");
+        throw new SshException("Unable to establish shell at $this->ssh connection");
     }
 
     public function isOpened(): bool
@@ -121,20 +144,7 @@ final class Shell implements ShellInterface
 
     public function close(): void
     {
-        if (is_resource($this->shell)) {
-            if (!@fclose($this->shell)) {
-                $this->critical('Shell stream closes is fail.');
-            }
-        }
-
-        if (is_resource($this->errors)) {
-            if (!@fclose($this->errors)) {
-                $this->critical('Errors stream closes is fail.');
-            }
-        }
-
-        $this->shell = false;
-        $this->errors = false;
+        $this->__destruct();
     }
 
     /**
@@ -156,29 +166,23 @@ final class Shell implements ShellInterface
      *
      * @param string $cmd Stuff to write to socket
      * @return void
-     * @throws Ssh2Exception
+     * @throws SshException
      */
     private function write(string $cmd): void
     {
         $this->clearBuffer();
-        $host = $this->connection->host;
-        $port = $this->connection->port;
-
-        $context = [
-            '{cmd}' => $cmd
-        ];
 
         if (!$this->isOpened()) {
             $this->critical("Unable to establish shell at {host}:{port} connection");
-            throw new Ssh2Exception("Unable to establish shell at $host:$port connection");
+            throw new SshException("Unable to establish shell at $this->ssh connection");
         }
-        $this->info('Write command to host {host}:{port} => "{cmd}"', $context);
+        $this->info('Write command to host {host}:{port} => "{cmd}"', ['{cmd}' => $cmd]);
 
-        $this->connection->executeTimestamp = microtime(true);
+        $this->executeTimestamp = microtime(true);
 
         if ((!fwrite($this->shell, trim($cmd) . PHP_EOL)) < 0) {
             $this->critical("Error writing to shell at {host}:{port} connection");
-            throw new Ssh2Exception("Error writing to shell at $host:$port connection");
+            throw new SshException("Error writing to shell at $this->ssh connection");
         }
     }
 
@@ -188,24 +192,22 @@ final class Shell implements ShellInterface
      *
      * @param string $prompt
      * @return void
-     * @throws Ssh2Exception
+     * @throws SshException
      */
     private function readTo(string $prompt): void
     {
-        $prompt = str_replace('{username}', $this->connection->getUsername(), $prompt);
-        $host = $this->connection->host;
-        $port = $this->connection->port;
+        $prompt = str_replace('{username}', $this->ssh->getUsername(), $prompt);
 
         $this->info('Set prompt to "{prompt}" on shell at {host}:{port} connection', ['{prompt}' => $prompt]);
 
-        if (false === $this->connection->isConnected()) {
+        if (false === $this->ssh->isConnected()) {
             $this->critical("Failed connecting to host {host}:{port}");
-            throw new Ssh2Exception("Failed connecting to host $host:$port");
+            throw new SshException("Failed connecting to host $this->ssh");
         }
 
         if (!is_resource($this->shell)) {
             $this->critical("Unable to establish shell at {host}:{port} connection");
-            throw new Ssh2Exception("Unable to establish shell at $host:$port connection");
+            throw new SshException("Unable to establish shell at $this->ssh connection");
         }
 
         $this->clearBuffer();
@@ -218,7 +220,7 @@ final class Shell implements ShellInterface
             $c = @fgetc($this->shell);
             if (false === $c) {
                 $this->info("Couldn't find the requested : '{prompt}', it was not in the data returned from server : '{buffer}'", ['{prompt}' => $prompt, '{buffer}' => $this->buffer]);
-                throw new Ssh2Exception("Couldn't find the requested : '$prompt', it was not in the data returned from server : '$this->buffer'");
+                throw new SshException("Couldn't find the requested : '$prompt', it was not in the data returned from server : '$this->buffer'");
             }
 
             // IANA TELNET OPTIONS
@@ -236,8 +238,8 @@ final class Shell implements ShellInterface
 
             if (preg_match("/$prompt\s?$/i", $this->buffer)) {
                 $this->log('none', PHP_EOL);
-                if (is_float($this->connection->executeTimestamp)) {
-                    $this->info("Command execution time is {timestamp} msec", ['{timestamp}' => (string)(microtime(true) - $this->connection->executeTimestamp)]);
+                if (is_float($this->executeTimestamp)) {
+                    $this->info("Command execution time is {timestamp} msec", ['{timestamp}' => (string)(microtime(true) - $this->executeTimestamp)]);
                 }
 //                $this->history .= $this->buffer;
                 $this->debug($this->buffer);
@@ -328,10 +330,10 @@ final class Shell implements ShellInterface
      *
      * @return false|string
      */
-    public function getErrors(): false|string
+    public function getStderr(): false|string
     {
-        if (is_resource($this->errors)) {
-            return fgets($this->errors, 8192);
+        if (is_resource($this->stderr)) {
+            return fgets($this->stderr, 8192);
         }
         return false;
     }
@@ -351,7 +353,7 @@ final class Shell implements ShellInterface
      */
     public function log($level, $message, array $context = array()): void
     {
-        $this->connection->log($level, $message, $context);
+        $this->ssh->log($level, $message, $context);
     }
 
     /**
@@ -361,6 +363,19 @@ final class Shell implements ShellInterface
     public function __destruct()
     {
         $this->clearBuffer();
-        $this->close();
+        if ($this->isOpened()) {
+            if (!@fclose($this->shell)) {
+                $this->critical('Shell stream closes is fail.');
+            }
+        }
+
+        if (is_resource($this->stderr)) {
+            if (!@fclose($this->stderr)) {
+                $this->critical('Errors stream closes is fail.');
+            }
+        }
+
+        $this->shell = false;
+        $this->stderr = false;
     }
 }

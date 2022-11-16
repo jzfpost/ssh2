@@ -11,18 +11,9 @@
  * @requires    libssh2 version => ^1.8.0
  */
 
-namespace jzfpost\ssh2\Auth;
+namespace jzfpost\ssh2\Exec;
 
-interface AuthInterface
+interface ExecInterface
 {
-    /**
-     * @param resource $session
-     * @return bool
-     */
-    public function authenticate(mixed $session): bool;
-
-    /**
-     * @return string
-     */
-    public function getUsername(): string;
+    public function exec(string $cmd): string|false;
 }

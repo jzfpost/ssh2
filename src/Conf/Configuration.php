@@ -1,6 +1,14 @@
 <?php declare(strict_types=1);
 /**
- * @author jzfpost@gmail.com
+ * @package     jzfpost\ssh2
+ *
+ * @category    Net
+ * @author      Eugenith <jzfpost@gmail.com>
+ * @copyright   jzfpost
+ * @license     see LICENSE.txt
+ * @link        https://giathub/jzfpost/ssh2
+ * @requires    ext-ssh2 version => ^1.3.1
+ * @requires    libssh2 version => ^1.8.0
  */
 
 namespace jzfpost\ssh2\Conf;
@@ -14,35 +22,35 @@ use ReflectionException;
  * $conf = new Configuration()->setHost('192.168.1.1')->setDebugMode()->setEncoding("UTF8");
  * ```
  */
-class Configuration
+final class Configuration
 {
 
     /**
      * @var non-empty-string hostname or IP address
      */
-    protected string $host = 'localhost';
+    private string $host;
     /**
      * @var positive-int
      */
-    protected int $port = 22;
+    private int $port;
     /**
      * @var positive-int the response timeout in seconds (s)
      */
-    protected int $timeout = 10;
+    private int $timeout = 10;
     /**
      * @var positive-int Delay execution in microseconds (ms)
      */
-    protected int $wait = 3500;
+    private int $wait = 3500;
     /**
      * @var non-empty-string|false Encoding characters
      */
-    protected string|false $encoding = false;
+    private string|false $encoding = false;
     /**
      * @var non-empty-string|false file path for logging
      */
-    protected string|false $loggingFileName = false;
-    protected bool $debugMode = false;
-    protected string $dateFormat = 'Y M d H:i:s';
+    private string|false $loggingFileName = false;
+    private bool $debugMode = false;
+    private string $dateFormat = 'Y M d H:i:s';
     /**
      * Methods may be an associative array with any of the ssh2 connect parameters
      * @param array<array-key, string|array<array-key, string>> $methods
@@ -61,7 +69,7 @@ class Configuration
      *     ]
      * ]
      */
-    protected array $methods = [];
+    private array $methods = [];
     /**
      * May be an associative array with any of the ssh2 connect parameters
      * @param array<array-key, callable> $callbacks
@@ -72,30 +80,31 @@ class Configuration
      *     'disconnect' => 'self::disconnect_cb($reason, $message, $language)'
      * ]
      */
-    protected array $callbacks = [
-        'ignore' => 'jzfpost\\Exception\\Callback::ignore_cb',
-        'macerror' => 'jzfpost\\Exception\\Callback::macerror_cb',
-        'disconnect' => 'jzfpost\\Exception\\Callback::disconnect_cb',
-        'debug' => 'jzfpost\\Exception\\Callback::debug_cb'
+    private array $callbacks = [
+        'ignore' => 'jzfpost\\Conf\\Callbacks::ignore_cb',
+        'macerror' => 'jzfpost\\Conf\\Callbacks::macerror_cb',
+        'disconnect' => 'jzfpost\\Conf\\Callbacks::disconnect_cb',
+        'debug' => 'jzfpost\\Conf\\Callbacks::debug_cb'
     ];
 
-    protected ?string $termType = 'dumb';
-    protected array $env = [null];
+    private ?string $termType = 'dumb';
+    private array $env = [null];
     /**
      * @var positive-int
      */
-    protected int $width = 240;
+    private int $width = 240;
     /**
      * @var positive-int
      */
-    protected int $height = 240;
+    private int $height = 240;
     /**
      * width_height_type should be one of
      * SSH2_TERM_UNIT_CHARS or
      * SSH2_TERM_UNIT_PIXELS.
      * @var int
      */
-    protected int $width_height_type = SSH2_TERM_UNIT_CHARS;
+    private int $width_height_type = SSH2_TERM_UNIT_CHARS;
+    private ?string $pty = null;
 
     /**
      * @psalm-param non-empty-string $host
@@ -294,7 +303,7 @@ class Configuration
     public function setMethods(array $methods): self
     {
         $new = clone $this;
-        $this->methods = $methods;
+        $new->methods = $methods;
 
         return $new;
     }
@@ -307,7 +316,7 @@ class Configuration
     public function setCallbacks(array $callbacks): self
     {
         $new = clone $this;
-        $this->callbacks = $callbacks;
+        $new->callbacks = $callbacks;
 
         return $new;
     }
@@ -320,7 +329,7 @@ class Configuration
     public function setTermType(string $termType): self
     {
         $new = clone $this;
-        $this->termType = empty($termType) ? null : $termType;
+        $new->termType = empty($termType) ? null : $termType;
 
         return $new;
     }
@@ -339,7 +348,7 @@ class Configuration
     public function setWidth(int $width): self
     {
         $new = clone $this;
-        $this->width = $width;
+        $new->width = $width;
 
         return $new;
     }
@@ -358,7 +367,7 @@ class Configuration
     public function setHeight(int $height): self
     {
         $new = clone $this;
-        $this->height = $height;
+        $new->height = $height;
 
         return $new;
     }
@@ -371,7 +380,20 @@ class Configuration
     public function setWidthHeightType(int $width_height_type): self
     {
         $new = clone $this;
-        $this->width_height_type = $width_height_type;
+        $new->width_height_type = $width_height_type;
+
+        return $new;
+    }
+
+    public function getPty(): ?string
+    {
+        return $this->pty;
+    }
+
+    public function setPty(?string $pty = null): self
+    {
+        $new = clone $this;
+        $new->pty = $pty;
 
         return $new;
     }

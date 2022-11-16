@@ -1,4 +1,15 @@
 <?php declare(strict_types=1);
+/**
+ * @package     jzfpost\ssh2
+ *
+ * @category    Net
+ * @author      Eugenith <jzfpost@gmail.com>
+ * @copyright   jzfpost
+ * @license     see LICENSE.txt
+ * @link        https://giathub/jzfpost/ssh2
+ * @requires    ext-ssh2 version => ^1.3.1
+ * @requires    libssh2 version => ^1.8.0
+ */
 
 namespace jzfpost\ssh2\Auth;
 
@@ -37,7 +48,7 @@ final class Hostbased extends AbstractAuth
      */
     public function authenticate(mixed $session): bool
     {
-        return @ssh2_auth_hostbased_file(
+        return ssh2_auth_hostbased_file(
             $session,
             $this->username,
             $this->hostname,
