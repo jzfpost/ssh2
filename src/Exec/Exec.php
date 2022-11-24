@@ -6,88 +6,74 @@
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
- * @link        https://giathub/jzfpost/ssh2
+ * @link        https://github/jzfpost/ssh2
  * @requires    ext-ssh2 version => ^1.3.1
  * @requires    libssh2 version => ^1.8.0
  */
 
 namespace jzfpost\ssh2\Exec;
 
-use jzfpost\ssh2\AbstractSshObject;
-use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Exceptions\SshException;
-use jzfpost\ssh2\Ssh;
-use Psr\Log\LoggerTrait;
 
-final class Exec implements ExecInterface
+use function is_resource;
+use function ssh2_exec;
+use function ssh2_fetch_stream;
+use function stream_set_blocking;
+use function microtime;
+
+final class Exec extends AbstractExec implements ExecInterface
 {
-    use LoggerTrait;
-
-    private AbstractSshObject $ssh;
-    private Configuration $configuration;
-    /**
-     * @var resource|closed-resource|false errors
-     */
-    private mixed $stderr = false;
-    private ?float $executeTimestamp = null;
-
-    public function __construct(AbstractSshObject $ssh)
-    {
-        $this->ssh = $ssh;
-        $this->configuration = $this->ssh->getConfiguration();
-
-        $this->info("{property} set to {value}", ['{property}' => 'TERMTYPE', '{value}' => $this->configuration->getTermType()]);
-        $this->info("{property} set to {value}", ['{property}' => 'WIDTH', '{value}' => (string)$this->configuration->getWidth()]);
-        $this->info("{property} set to {value}", ['{property}' => 'HEIGHT', '{value}' => (string)$this->configuration->getHeight()]);
-
-        foreach ($this->configuration->getEnv() as $key => $value) {
-            if ($value === null) {
-                $this->info("{property} set to {value}", ['{property}' => 'ENV', '{value}' => 'NULL']);
-            } else {
-                $this->info("{property} set to {value}", ['{property}' => 'ENV', '{value}' => $key . ' => ' . $value]);
-            }
-        }
-    }
 
     public function exec(string $cmd): string|false
     {
-        if (!$this->ssh->isConnected()) {
-            $this->critical("Failed connecting to host {host}:{port}");
-            throw new SshException("Failed connecting to host $this->ssh");
+        $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
+        $this->logger->info("Trying execute '{cmd}' at {host}:{port} connection", $context);
+
+        $session = $this->ssh->getSession();
+        if (is_resource($session)) {
+            $this->executeTimestamp = microtime(true);
+
+            $exec = @ssh2_exec(
+                $session,
+                $cmd,
+                $this->configuration->getPty(),
+                $this->configuration->getEnv(),
+                $this->configuration->getWidth(),
+                $this->configuration->getHeight(),
+                $this->configuration->getWidthHeightType()->getValue()
+            );
+
+            $this->stderr = ssh2_fetch_stream($exec, SSH2_STREAM_STDERR);
+            stream_set_blocking($this->stderr, true);
+            stream_set_blocking($exec, true);
+
+            usleep($this->configuration->getWait());
+
+            stream_set_timeout($exec, $this->configuration->getTimeout());
+
+            $content = stream_get_contents($exec);
+            if (false === $content) {
+                $this->logger->critical("Failed to execute '{cmd}' at {host}:{port}", $context);
+                throw new SshException("Failed to execute '{cmd}' at $this->ssh");
+            }
+
+            $timestamp = microtime(true) - $this->executeTimestamp;
+
+            fflush($exec);
+
+            $this->logger->info(
+                "Command execution time is {timestamp} microseconds",
+                $this->ssh->getLogContext() + ['{timestamp}' => (string)$timestamp]
+            );
+            $this->logger->log('none', PHP_EOL);
+            $this->logger->debug($content, $this->ssh->getLogContext());
+            $this->logger->info("Data transmission is over at {host}:{port} connection", $this->ssh->getLogContext());
+
+            return $content;
         }
-        if (false === $this->ssh->isAuthorised) {
-            $this->critical("Failed authorisation on host {host}:{port}");
-            throw new SshException("Failed authorisation on host $this->ssh");
-        }
 
-        $this->info("Trying execute '{cmd}' at {host}:{port} connection", ['{cmd}' => $cmd]);
-
-        $this->executeTimestamp = microtime(true);
-
-        $exec = @ssh2_exec(
-            $this->ssh->getSession(),
-            $cmd,
-            $this->configuration->getPty(),
-            $this->configuration->getEnv(),
-            $this->configuration->getWidth(),
-            $this->configuration->getHeight(),
-            $this->configuration->getWidthHeightType()
-        );
-
-        $this->stderr = ssh2_fetch_stream($exec, SSH2_STREAM_STDERR);
-        stream_set_blocking($this->stderr, true);
-        stream_set_blocking($exec, true);
-        $content = stream_get_contents($exec);
-        $this->info("Command execution time is {timestamp} msec", ['{timestamp}' => (string)(microtime(true) - $this->executeTimestamp)]);
-        $this->debug($content);
-        return $content;
+        $this->logger->critical("Unable to exec command at {host}:{port} connection", $this->ssh->getLogContext());
+        throw new SshException("Unable to exec command at $this->ssh connection");
     }
 
-    /**
-     * @inheritDoc
-     */
-    public function log($level, $message, array $context = array()): void
-    {
-        $this->ssh->log($level, $message, $context);
-    }
 }

@@ -6,7 +6,7 @@
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
- * @link        https://giathub/jzfpost/ssh2
+ * @link        https://github/jzfpost/ssh2
  * @requires    ext-ssh2 version => ^1.3.1
  * @requires    libssh2 version => ^1.8.0
  */

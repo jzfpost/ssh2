@@ -6,12 +6,12 @@
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
- * @link        https://giathub/jzfpost/ssh2
+ * @link        https://github/jzfpost/ssh2
  * @requires    ext-ssh2 version => ^1.3.1
  * @requires    libssh2 version => ^1.8.0
  */
 
-namespace jzfpost\ssh2\Shell;
+namespace jzfpost\ssh2\Exec;
 
 interface ShellInterface
 {
@@ -34,7 +34,4 @@ interface ShellInterface
      */
     public function send(string $cmd, string $prompt): string;
 
-    public function getBuffer(): string;
-
-    public function getStderr(): string|false;
 }

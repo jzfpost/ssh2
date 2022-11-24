@@ -9,13 +9,25 @@
  * @link        https://github/jzfpost/ssh2
  * @requires    ext-ssh2 version => ^1.3.1
  * @requires    libssh2 version => ^1.8.0
- * @see         "php -i | grep ssh2". Package tested with php-ssh ext-ssh2 version => 1.3.1 on libssh2 version => 1.8.0
  */
 
-namespace jzfpost\ssh2\Exceptions;
+namespace jzfpost\ssh2\Conf;
 
-use RuntimeException;
-
-class SshException extends RuntimeException
+enum TermTypeEnum implements TypeInterface
 {
+    case ansi;
+    case dumb;
+    case hurd;
+    case pcansi;
+    case linux;
+    case xterm;
+    case xterm_r6;
+    case vt100;
+    case vt102;
+    case vanilla;
+
+    public function getValue(): string
+    {
+        return $this->name;
+    }
 }

@@ -7,6 +7,9 @@ namespace jzfpost\ssh2\Auth;
 
 use jzfpost\ssh2\TestCase;
 use ReflectionException;
+use jzfpost\ssh2\Auth\Agent;
+use jzfpost\ssh2\Auth\AuthInterface;
+use jzfpost\ssh2\Auth\AbstractAuth;
 
 final class AgentTest extends TestCase
 {
@@ -25,8 +28,8 @@ final class AgentTest extends TestCase
      */
     public function testClass(): void
     {
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\Agent', $this->auth);
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\AuthInterface', $this->auth);
+        $this->assertInstanceOf(Agent::class, $this->auth);
+        $this->assertInstanceOf(AuthInterface::class, $this->auth);
 
         $username = self::getUnaccessiblePropertyValue('username', $this->auth);
         $this->assertIsString($username);
@@ -39,9 +42,9 @@ final class AgentTest extends TestCase
     public function testSetUsername(): void
     {
         $new = $this->auth->setUsername('user');
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\Agent', $new);
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\AuthInterface', $new);
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\AbstractAuth', $new);
+        $this->assertInstanceOf(Agent::class, $new);
+        $this->assertInstanceOf(AuthInterface::class, $new);
+        $this->assertInstanceOf(AbstractAuth::class, $new);
 
         $this->assertIsString($new->getUsername());
         $this->assertNotEquals($new->getUsername(), $this->username);

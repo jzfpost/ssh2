@@ -6,25 +6,26 @@
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
- * @link        https://giathub/jzfpost/ssh2
+ * @link        https://github/jzfpost/ssh2
  * @requires    ext-ssh2 version => ^1.3.1
  * @requires    libssh2 version => ^1.8.0
  */
 
 namespace jzfpost\ssh2\Conf;
 
+use JetBrains\PhpStorm\Pure;
 use ReflectionClass;
 use ReflectionException;
 
 /**
  * USAGE:
  * ```php
- * $conf = new Configuration()->setHost('192.168.1.1')->setDebugMode()->setEncoding("UTF8");
+ * $conf = new Configuration('www.site.com')->setTermType(TermTypeEnum::xterm);
+ * $ssh = new SSH($conf);
  * ```
  */
 final class Configuration
 {
-
     /**
      * @var non-empty-string hostname or IP address
      */
@@ -46,12 +47,6 @@ final class Configuration
      */
     private string|false $encoding = false;
     /**
-     * @var non-empty-string|false file path for logging
-     */
-    private string|false $loggingFileName = false;
-    private bool $debugMode = false;
-    private string $dateFormat = 'Y M d H:i:s';
-    /**
      * Methods may be an associative array with any of the ssh2 connect parameters
      * @param array<array-key, string|array<array-key, string>> $methods
      * $methods = [
@@ -71,7 +66,7 @@ final class Configuration
      */
     private array $methods = [];
     /**
-     * May be an associative array with any of the ssh2 connect parameters
+     * Maybe an associative array with any of the ssh2 connect parameters
      * @param array<array-key, callable> $callbacks
      * $callbacks = [
      *     'ignore' => 'self::ignore_cb($message)',
@@ -86,24 +81,26 @@ final class Configuration
         'disconnect' => 'jzfpost\\Conf\\Callbacks::disconnect_cb',
         'debug' => 'jzfpost\\Conf\\Callbacks::debug_cb'
     ];
-
-    private ?string $termType = 'dumb';
-    private array $env = [null];
+    private TermTypeEnum $termType = TermTypeEnum::vanilla;
+    /**
+     * @var array<string, string>|null
+     */
+    private ?array $env = null;
     /**
      * @var positive-int
      */
-    private int $width = 240;
+    private int $width = SSH2_DEFAULT_TERM_WIDTH;
     /**
      * @var positive-int
      */
-    private int $height = 240;
+    private int $height = SSH2_DEFAULT_TERM_HEIGHT;
     /**
      * width_height_type should be one of
-     * SSH2_TERM_UNIT_CHARS or
-     * SSH2_TERM_UNIT_PIXELS.
-     * @var int
+     * WidthHeightTypeEnum::chars
+     * or
+     * WidthHeightTypeEnum::pixels.
      */
-    private int $width_height_type = SSH2_TERM_UNIT_CHARS;
+    private WidthHeightTypeEnum $widthHeightType = WidthHeightTypeEnum::chars;
     private ?string $pty = null;
 
     /**
@@ -116,27 +113,46 @@ final class Configuration
         $this->port = $port;
     }
 
-    public function getDefaultProperties(): array
+    #[Pure] public function getDefaultProperties(): array
     {
-        return (new ReflectionClass(clone $this))->getDefaultProperties();
+        $new = new self();
+        return [
+            'host' => $new->getHost(),
+            'port' => $new->getPort(),
+            'timeout' => $new->getTimeout(),
+            'wait' => $new->getWait(),
+            'encoding' => $new->getEncoding(),
+            'methods' => $new->getMethods(),
+            'callbacks' => $new->getCallbacks(),
+            'termType' => $new->getTermType(),
+            'env' => $new->getEnv(),
+            'width' => $new->getWidth(),
+            'height' => $new->getHeight(),
+            'widthHeightType' => $new->getWidthHeightType(),
+            'pty' => $new->getPty()
+        ];
     }
 
     /**
-     * @throws ReflectionException
+     * @return array
      */
-    public function getAsArray(): array
+    #[Pure] public function getAsArray(): array
     {
-        /** @var array<string, mixed> $array */
-        $array = [];
-
-        $new = new ReflectionClass($this);
-        foreach ($new->getProperties() as $item) {
-            $name = $item->getName();
-            $property = $new->getProperty($name);
-            $array[$name] = $property->getValue($this);
-        }
-
-        return $array;
+        return [
+            'host' => $this->getHost(),
+            'port' => $this->getPort(),
+            'timeout' => $this->getTimeout(),
+            'wait' => $this->getWait(),
+            'encoding' => $this->getEncoding(),
+            'methods' => $this->getMethods(),
+            'callbacks' => $this->getCallbacks(),
+            'termType' => $this->getTermType(),
+            'env' => $this->getEnv(),
+            'width' => $this->getWidth(),
+            'height' => $this->getHeight(),
+            'widthHeightType' => $this->getWidthHeightType(),
+            'pty' => $this->getPty()
+        ];
     }
 
     /**
@@ -203,13 +219,19 @@ final class Configuration
         return $new;
     }
 
-    public function getEnv(): array
+    /**
+     * @return array<string, string>|null
+     */
+    public function getEnv(): ?array
     {
         return $this->env;
     }
 
-
-    public function setEnv(array $env = [null]): self
+    /**
+     * @param array<string, string>|null $env
+     * @return $this
+     */
+    public function setEnv(array $env = null): self
     {
         $new = clone $this;
         $new->env = $env;
@@ -217,6 +239,9 @@ final class Configuration
         return $new;
     }
 
+    /**
+     * @return positive-int
+     */
     public function getWait(): int
     {
         return $this->wait;
@@ -249,52 +274,6 @@ final class Configuration
         return $new;
     }
 
-    public function getLoggingFileName(): bool|string
-    {
-        return $this->loggingFileName;
-    }
-
-    /**
-     * @psalm-param non-empty-string|false $loggingFileName
-     */
-    public function setLoggingFileName(string|false $loggingFileName): self
-    {
-        $new = clone $this;
-        $new->loggingFileName = $loggingFileName;
-
-        return $new;
-    }
-
-    public function isDebugMode(): bool
-    {
-        return $this->debugMode;
-    }
-
-    /**
-     * @param bool $debugMode
-     * @return $this
-     */
-    public function setDebugMode(bool $debugMode = true): self
-    {
-        $new = clone $this;
-        $new->debugMode = $debugMode;
-
-        return $new;
-    }
-
-    public function getDateFormat(): string
-    {
-        return $this->dateFormat;
-    }
-
-    public function setDateFormat(string $dateFormat): self
-    {
-        $new = clone $this;
-        $new->dateFormat = $dateFormat;
-
-        return $new;
-    }
-
     public function getMethods(): array
     {
         return $this->methods;
@@ -321,15 +300,15 @@ final class Configuration
         return $new;
     }
 
-    public function getTermType(): ?string
+    public function getTermType(): TermTypeEnum
     {
         return $this->termType;
     }
 
-    public function setTermType(string $termType): self
+    public function setTermType(TermTypeEnum $termType): self
     {
         $new = clone $this;
-        $new->termType = empty($termType) ? null : $termType;
+        $new->termType = $termType;
 
         return $new;
     }
@@ -372,15 +351,15 @@ final class Configuration
         return $new;
     }
 
-    public function getWidthHeightType(): int
+    public function getWidthHeightType(): WidthHeightTypeEnum
     {
-        return $this->width_height_type;
+        return $this->widthHeightType;
     }
 
-    public function setWidthHeightType(int $width_height_type): self
+    public function setWidthHeightType(WidthHeightTypeEnum $widthHeightType): self
     {
         $new = clone $this;
-        $new->width_height_type = $width_height_type;
+        $new->widthHeightType = $widthHeightType;
 
         return $new;
     }
@@ -397,6 +376,4 @@ final class Configuration
 
         return $new;
     }
-
-
 }

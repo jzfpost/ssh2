@@ -9,13 +9,11 @@
  * @link        https://github/jzfpost/ssh2
  * @requires    ext-ssh2 version => ^1.3.1
  * @requires    libssh2 version => ^1.8.0
- * @see         "php -i | grep ssh2". Package tested with php-ssh ext-ssh2 version => 1.3.1 on libssh2 version => 1.8.0
  */
 
-namespace jzfpost\ssh2\Exceptions;
+namespace jzfpost\ssh2\Conf;
 
-use RuntimeException;
-
-class SshException extends RuntimeException
+interface TypeInterface
 {
+    public function getValue(): int|string;
 }

@@ -1,21 +1,22 @@
-PHP [SSH2-client](https://github.com/jzfpost/ssh2) connection helper.
+PHP [SSH2-client](https://github.com/jzfpost/ssh2) connection helper based on ext-ssh2.
 
 Example usage
 -------------
 ```php
 $auth = new Password('username', 'password');
 
-$conf = (new Configuration('192.168.1.1'))
-        ->setLoggingFileName("/var/log/ssh2/log.txt")
-        ->setDebugMode();
+$conf = (new Configuration('192.168.1.1'));
         
-$ssh2 = new PhpSsh2($conf);
-$ssh2->connect()->auth($auth);
+$ssh2 = new Ssh($conf);
+$ssh2->connect()->authentication($auth);
 
-$shell = $ssh2->getShell()
-    ->open(PhpSsh2::PROMPT_LINUX);
+//open shell on network device
+$shell = $ssh2->getShell()->open(Shell::PROMPT_CISCO);
+$result = $shell->exec('ls -a', Shell::PROMPT_CISCO);
 
-$result = $shell->send('ls -a', PhpSsh2::PROMPT_LINUX);
+// or exec on linux
+$exec = $ssh2->getExec();
+$result = $exec->exec('ls -a');
 
 $ssh2->disconnect();
 ```
