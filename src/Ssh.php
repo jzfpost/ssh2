@@ -188,6 +188,11 @@ final class Ssh implements SshInterface, LoggerAwareInterface
         return $this->logger;
     }
 
+    public function setLogger(LoggerInterface $logger): void
+    {
+        $this->logger = $logger;
+    }
+
     /**
      * Return list of negotiated methods
      */
@@ -407,10 +412,5 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             '{widthHeightType}' => $this->widthHeightType === SSH2_TERM_UNIT_CHARS ? 'TERM_UNIT_CHARS' : 'TERM_UNIT_PIXELS',
             '{pty}' => $this->pty ?? 'disabled',
         ];
-    }
-
-    public function setLogger(LoggerInterface $logger)
-    {
-        $this->logger = $logger;
     }
 }

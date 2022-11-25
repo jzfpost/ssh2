@@ -16,7 +16,7 @@ namespace jzfpost\ssh2\Logger;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 
-final class Logger extends AbstractLogger implements LoggerInterface
+final class FileLogger extends AbstractLogger implements LoggerInterface
 {
 
     public readonly string $filePath;
@@ -33,7 +33,7 @@ final class Logger extends AbstractLogger implements LoggerInterface
     /**
      * @inheritDoc
      */
-    public function log($level, $message, array $context = array())
+    public function log($level, $message, array $context = array()): void
     {
         /** @psalm-var array<array-key, float|int|string> $context */
 
@@ -50,12 +50,14 @@ final class Logger extends AbstractLogger implements LoggerInterface
         if ($level === 'none') {
             $text = $message;
         } elseif ($level === 'debug') {
-            $text = sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
+            $text = PHP_EOL
+                . sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
                 . PHP_EOL
                 . '---------------- ---------------- ----------------' . PHP_EOL
                 . $message
                 . PHP_EOL
-                . '================ ================ ================' . PHP_EOL;
+                . '================ ================ ================' . PHP_EOL
+                . PHP_EOL;
         } else {
             $text = sprintf('[%s] {host}:{port} %s: %s', $timestamp, $level, $message) . PHP_EOL;
         }
