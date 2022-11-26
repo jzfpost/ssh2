@@ -21,13 +21,13 @@ use function ssh2_fetch_stream;
 use function stream_set_blocking;
 use function microtime;
 
-final class Exec extends AbstractExec implements ExecInterface
+final class Exec extends AbstractExec
 {
 
     public function exec(string $cmd): string|false
     {
         $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
-        $this->logger->info("Trying execute '{cmd}' at {host}:{port} connection", $context);
+        $this->logger->notice("Trying execute '{cmd}' at {host}:{port} connection", $context);
 
         $session = $this->ssh->getSession();
         if (is_resource($session)) {
@@ -63,9 +63,9 @@ final class Exec extends AbstractExec implements ExecInterface
 
             $this->logger->info(
                 "Command execution time is {timestamp} microseconds",
-                $this->ssh->getLogContext() + ['{timestamp}' => (string)$timestamp]
+                $this->ssh->getLogContext() + ['{timestamp}' => (string) $timestamp]
             );
-            $this->logger->log('none', PHP_EOL);
+
             $this->logger->debug($content, $this->ssh->getLogContext());
             $this->logger->info("Data transmission is over at {host}:{port} connection", $this->ssh->getLogContext());
 
@@ -74,6 +74,20 @@ final class Exec extends AbstractExec implements ExecInterface
 
         $this->logger->critical("Unable to exec command at {host}:{port} connection", $this->ssh->getLogContext());
         throw new SshException("Unable to exec command at $this->ssh connection");
+    }
+
+    public function close(): void
+    {
+        $stdErr = $this->getStderr();
+        if (is_resource($stdErr)) {
+            fflush($stdErr);
+            !@fclose($stdErr);
+        }
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 
 }

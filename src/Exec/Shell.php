@@ -32,7 +32,7 @@ use function strpos;
 use function usleep;
 use function fgetc;
 
-final class Shell extends AbstractExec implements ShellInterface, ExecInterface
+final class Shell extends AbstractExec implements ShellInterface
 {
     /**
      * Commands turn off pagination on terminal
@@ -61,7 +61,7 @@ final class Shell extends AbstractExec implements ShellInterface, ExecInterface
      */
     public function open(string $prompt): ShellInterface
     {
-        $this->logger->info('Trying opening shell at {host}:{port} connection', $this->ssh->getLogContext());
+        $this->logger->notice('Trying opening shell at {host}:{port} connection', $this->ssh->getLogContext());
 
         if (is_resource($this->shell)) {
             throw new SshException("Already opened shell at $this->ssh connection");
@@ -80,7 +80,7 @@ final class Shell extends AbstractExec implements ShellInterface, ExecInterface
 
             if ($this->isOpened()) {
 
-                $this->logger->info('Shell opened success at {host}:{port} connection', $this->ssh->getLogContext());
+                $this->logger->notice('Shell opened success at {host}:{port} connection', $this->ssh->getLogContext());
 
                 $this->stderr = ssh2_fetch_stream($this->shell, SSH2_STREAM_STDERR);
                 stream_set_blocking($this->stderr, true);
@@ -187,7 +187,7 @@ final class Shell extends AbstractExec implements ShellInterface, ExecInterface
     {
         $this->clearBuffer();
 
-        $this->logger->info('Write command to host {host}:{port} => "{cmd}"', $this->ssh->getLogContext() + ['{cmd}' => $cmd]);
+        $this->logger->notice('Write command to host {host}:{port} => "{cmd}"', $this->ssh->getLogContext() + ['{cmd}' => $cmd]);
 
         $this->executeTimestamp = microtime(true);
 
@@ -245,8 +245,7 @@ final class Shell extends AbstractExec implements ShellInterface, ExecInterface
             } while (stream_get_meta_data($this->shell)["eof"] === false);
 
             fflush($this->shell);
-
-            $this->logger->log('none', PHP_EOL);
+            
             $this->logger->debug($this->buffer, $this->ssh->getLogContext());
             $this->logger->info("Data transmission is over on shell at {host}:{port} connection", $this->ssh->getLogContext());
         }

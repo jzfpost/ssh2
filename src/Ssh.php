@@ -18,6 +18,7 @@ use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Conf\TypeInterface;
 use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\Exec\Exec;
+use jzfpost\ssh2\Exec\ExecInterface;
 use jzfpost\ssh2\Exec\Shell;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
@@ -83,13 +84,13 @@ final class Ssh implements SshInterface, LoggerAwareInterface
      */
     private mixed $exec = false;
     /**
-     * @var Shell|false
-     */
-    private mixed $shell = false;
-    /**
      * @var resource|closed-resource|false
      */
     private mixed $session = false;
+
+    private ?string $fingerPrint = null;
+    private ?array $authMethods = null;
+    private ?array $methodsNegotiated = null;
 
     public function __construct(Configuration $configuration = new Configuration(), LoggerInterface $logger = new NullLogger())
     {
@@ -125,7 +126,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             throw new SshException("Connection already exists on $this");
         }
 
-        $this->logger->info('Trying connection to host {host}:{port}', $this->getLogContext());
+        $this->logger->notice('Trying connection to host {host}:{port}', $this->getLogContext());
 
         $this->session = @ssh2_connect($this->host, $this->port, $this->methods, $this->callbacks);
 
@@ -134,7 +135,10 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             throw new SshException("Connection refused to host $this");
         }
 
-        $this->logger->info('Connection established success to host {host}:{port}', $this->getLogContext());
+        $this->logger->notice('Connection established success to host {host}:{port}', $this->getLogContext());
+
+        $this->getFingerPrint();
+        $this->getMethodNegotiated();
 
         return $this;
     }
@@ -157,17 +161,27 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     public function disconnect(): void
     {
-        $this->__destruct();
+        if ($this->exec instanceof ExecInterface) {
+            $this->exec->close();
+            $this->exec = false;
+        }
+
+        $this->isAuthorised = false;
+
+        if (is_resource($this->session) && @ssh2_disconnect($this->session)) {
+            $this->session = false;
+            $this->logger->notice('Disconnection complete', $this->getLogContext());
+        }
     }
 
     public function getExec(): Exec
     {
-        return $this->exec instanceof Exec ? $this->exec : $this->exec = new Exec($this);
+        return $this->exec instanceof Exec ? $this->exec : $this->exec = new Exec($this, $this->logger);
     }
 
     public function getShell(): Shell
     {
-        return $this->shell instanceof Shell ? $this->shell : $this->shell = new Shell($this);
+        return $this->exec instanceof Shell ? $this->exec : $this->exec = new Shell($this, $this->logger);
     }
 
     public function getUsername(): string
@@ -198,7 +212,18 @@ final class Ssh implements SshInterface, LoggerAwareInterface
      */
     public function getMethodNegotiated(): array
     {
-        return is_resource($this->session) ? @ssh2_methods_negotiated($this->session) : [];
+        if ($this->methodsNegotiated === null) {
+            $this->methodsNegotiated = is_resource($this->session) ? @ssh2_methods_negotiated($this->session) : [];
+
+            if (is_array($this->methodsNegotiated)) {
+                $this->logger->notice('Methods negotiated at {host}:{port}:', $this->logContext);
+                $this->logger->debug(print_r($this->methodsNegotiated, true), $this->logContext);
+            } else {
+                $this->logger->warning('No methods negotiated at {host}:{port}:', $this->logContext);
+            }
+        }
+
+        return $this->methodsNegotiated;
     }
 
     /**
@@ -214,9 +239,16 @@ final class Ssh implements SshInterface, LoggerAwareInterface
      */
     public function getFingerPrint(int $flags = 0): string
     {
-        return is_resource($this->session)
-            ? @ssh2_fingerprint($this->session, $flags)
-            : throw new SshException("Not established ssh2 session");
+        if ($this->fingerPrint === null) {
+            $this->fingerPrint = is_resource($this->session)
+                ? @ssh2_fingerprint($this->session, $flags)
+                : throw new SshException("Not established ssh2 session");
+
+            $this->logger->notice('FingerPrint at {host}:{port}:', $this->logContext);
+            $this->logger->debug($this->fingerPrint, $this->logContext);
+        }
+
+        return $this->fingerPrint;
     }
 
     /**
@@ -229,9 +261,20 @@ final class Ssh implements SshInterface, LoggerAwareInterface
      */
     public function getAuthMethods(string $username): bool|array
     {
-        return is_resource($this->session)
-            ? @ssh2_auth_none($this->session, $username)
-            : throw new SshException("Not established ssh2 session");
+        if ($this->authMethods === null) {
+            $this->authMethods = is_resource($this->session)
+                ? @ssh2_auth_none($this->session, $username)
+                : throw new SshException("Not established ssh2 session");
+
+            if (is_array($this->authMethods)) {
+                $this->logger->notice('Authentication methods negotiated at {host}:{port}:', $this->logContext);
+                $this->logger->debug(print_r($this->authMethods, true), $this->logContext);
+            } else {
+                $this->logger->warning('No authentication methods negotiated at {host}:{port}:', $this->logContext);
+            }
+        }
+
+        return $this->authMethods;
     }
 
     /**
@@ -327,6 +370,9 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             $this->logger->critical("Failed connecting to host {host}:{port}", $this->getLogContext());
             throw new SshException("Failed connecting to host $this");
         }
+        $this->logger->notice("Trying authenticate on host $this");
+
+        $this->getAuthMethods($auth->getUsername());
 
         $this->isAuthorised = $auth->authenticate($this->session);
 
@@ -334,7 +380,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             $this->logger->critical("Failed authentication on host {host}:{port}", $this->getLogContext());
             throw new SshException("Failed authentication on host $this");
         }
-        $this->logger->info("Authentication success on host $this");
+        $this->logger->notice("Authentication success on host $this");
 
         return $this;
     }
@@ -351,23 +397,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface
      */
     public function __destruct()
     {
-        if ($this->shell instanceof Shell) {
-            $this->shell->close();
-            $this->shell = false;
-        }
-        if ($this->exec instanceof Exec) {
-            $stdErr = $this->exec->getStderr();
-            if (is_resource($stdErr)) {
-                !@fclose($stdErr);
-            }
-            $this->exec = false;
-        }
-        $this->isAuthorised = false;
-
-        if (is_resource($this->session) && @ssh2_disconnect($this->session)) {
-            $this->session = false;
-            $this->logger->info('Disconnection complete', $this->getLogContext());
-        }
+        $this->disconnect();
     }
 
     public function __get(string $name)

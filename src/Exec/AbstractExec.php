@@ -17,11 +17,12 @@ use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\SshInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 use function is_resource;
 use function microtime;
 
-abstract class AbstractExec
+abstract class AbstractExec implements ExecInterface
 {
 
     protected SshInterface $ssh;
@@ -34,11 +35,11 @@ abstract class AbstractExec
      */
     protected mixed $stderr = false;
 
-    public function __construct(SshInterface $ssh)
+    public function __construct(SshInterface $ssh, LoggerInterface $logger = new NullLogger)
     {
         $this->ssh = $ssh;
         $this->configuration = $this->ssh->getConfiguration();
-        $this->logger = $this->ssh->getLogger();
+        $this->logger = $logger;
 
         $this->executeTimestamp = microtime(true);
 
@@ -48,11 +49,11 @@ abstract class AbstractExec
         );
         $this->logger->info(
             "{property} set to {value}",
-            $this->ssh->getLogContext() + ['{property}' => 'WIDTH', '{value}' => (string)$this->configuration->getWidth()]
+            $this->ssh->getLogContext() + ['{property}' => 'WIDTH', '{value}' => (string) $this->configuration->getWidth()]
         );
         $this->logger->info(
             "{property} set to {value}",
-            $this->ssh->getLogContext() + ['{property}' => 'HEIGHT', '{value}' => (string)$this->configuration->getHeight()]
+            $this->ssh->getLogContext() + ['{property}' => 'HEIGHT', '{value}' => (string) $this->configuration->getHeight()]
         );
 
         $this->logger->info(
@@ -84,6 +85,10 @@ abstract class AbstractExec
             throw new SshException("Failed authorisation on host $this->ssh");
         }
     }
+
+    abstract public function exec(string $cmd): string|false;
+
+    abstract public function close(): void;
 
     /**
      * @psalm-return resource|false

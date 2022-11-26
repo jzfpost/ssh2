@@ -7,7 +7,7 @@
     ],
     "license": "MIT",
     "type": "ssh2-helper",
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "authors": [
         {
             "name": "Eugenith",
@@ -16,7 +16,7 @@
     ],
     "require": {
         "php": ">=8.1",
-        "psr/log": "^1.1.4",
+        "psr/log": "*",
         "ext-mbstring": "*",
         "ext-ssh2": "*"
     },

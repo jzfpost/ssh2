@@ -33,7 +33,7 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
     /**
      * @inheritDoc
      */
-    public function log($level, $message, array $context = array()): void
+    public function log($level, string|\Stringable $message, array $context = []): void
     {
         /** @psalm-var array<array-key, float|int|string> $context */
 
@@ -47,9 +47,7 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
             $message = ucfirst($message);
         }
 
-        if ($level === 'none') {
-            $text = $message;
-        } elseif ($level === 'debug') {
+        if ($level === 'debug') {
             $text = PHP_EOL
                 . sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
                 . PHP_EOL
