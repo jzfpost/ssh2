@@ -17,30 +17,16 @@ use function ssh2_auth_hostbased_file;
 
 final class Hostbased extends AbstractAuth
 {
-    private string $hostname;
-    private string $pubkeyFile;
-    private string $privkeyFile;
-    private string $passphrase;
-    private string $localUsername;
 
-    /**
-     * @inheritDoc
-     */
     public function __construct(
-        string $username,
-        string $hostname,
-        string $pubkeyFile,
-        string $privkeyFile,
-        string $passphrase = '',
-        string $localUsername = ''
+        protected readonly string $username,
+        private readonly string   $hostname,
+        private readonly string   $pubkeyFile,
+        private readonly string   $privkeyFile,
+        private readonly string   $passphrase = '',
+        private readonly string   $localUsername = ''
     )
     {
-        parent::__construct($username);
-        $this->hostname = $hostname;
-        $this->pubkeyFile = $pubkeyFile;
-        $this->privkeyFile = $privkeyFile;
-        $this->passphrase = $passphrase;
-        $this->localUsername = $localUsername;
     }
 
     /**
@@ -59,9 +45,6 @@ final class Hostbased extends AbstractAuth
         );
     }
 
-    /**
-     * @inheritDoc
-     */
     public function setUsername(string $username): self
     {
         return new self(

@@ -19,15 +19,12 @@ use Psr\Log\LoggerInterface;
 final class FileLogger extends AbstractLogger implements LoggerInterface
 {
 
-    public readonly string $filePath;
-    public bool $isPrintable;
-    public string $dateFormat;
-
-    public function __construct(string $filePath, bool $isPrintable = false, string $dateFormat = 'Y M d H:i:s')
+    public function __construct(
+        public readonly string $filePath,
+        public bool            $isPrintable = false,
+        public string          $dateFormat = 'Y M d H:i:s'
+    )
     {
-        $this->filePath = $filePath;
-        $this->isPrintable = $isPrintable;
-        $this->dateFormat = $dateFormat;
     }
 
     /**
@@ -43,8 +40,10 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
 
         $timestamp = date($this->dateFormat);
 
-        if (strlen($message) > 1) {
-            $message = ucfirst($message);
+        $text = (string) $message;
+
+        if (strlen($text) > 1) {
+            $text = ucfirst($text);
         }
 
         if ($level === 'debug') {
@@ -52,12 +51,12 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
                 . sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
                 . PHP_EOL
                 . '---------------- ---------------- ----------------' . PHP_EOL
-                . $message
+                . $text
                 . PHP_EOL
                 . '================ ================ ================' . PHP_EOL
                 . PHP_EOL;
         } else {
-            $text = sprintf('[%s] {host}:{port} %s: %s', $timestamp, $level, $message) . PHP_EOL;
+            $text = sprintf('[%s] {host}:{port} %s: %s', $timestamp, $level, $text) . PHP_EOL;
         }
 
         $text = str_replace(array_keys($context), $context, $text);

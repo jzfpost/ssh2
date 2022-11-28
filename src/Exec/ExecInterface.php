@@ -15,7 +15,7 @@ namespace jzfpost\ssh2\Exec;
 
 interface ExecInterface
 {
-    public function exec(string $cmd): string|false;
+    public function exec(string $cmd): string;
 
     public function close(): void;
 }

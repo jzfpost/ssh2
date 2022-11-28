@@ -19,13 +19,21 @@ use function is_resource;
 use function ssh2_exec;
 use function ssh2_fetch_stream;
 use function stream_set_blocking;
+use function stream_set_timeout;
+use function stream_get_contents;
+use function usleep;
+use function fflush;
+use function fclose;
 use function microtime;
+use function trim;
 
 final class Exec extends AbstractExec
 {
 
-    public function exec(string $cmd): string|false
+    public function exec(string $cmd): string
     {
+        $this->checkConnectionEstablished();
+
         $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
         $this->logger->notice("Trying execute '{cmd}' at {host}:{port} connection", $context);
 
@@ -69,7 +77,7 @@ final class Exec extends AbstractExec
             $this->logger->debug($content, $this->ssh->getLogContext());
             $this->logger->info("Data transmission is over at {host}:{port} connection", $this->ssh->getLogContext());
 
-            return $content;
+            return trim($content);
         }
 
         $this->logger->critical("Unable to exec command at {host}:{port} connection", $this->ssh->getLogContext());

@@ -9,6 +9,7 @@ Thumbs.db
 composer.lock
 runTests.sh
 runPsalm.sh
+runRector.sh
 composer_update.sh
 phpmetricks.sh
 /.php_metrics/

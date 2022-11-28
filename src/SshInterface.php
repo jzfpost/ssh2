@@ -44,7 +44,7 @@ interface SshInterface
 
     public function getFingerPrint(): string;
 
-    public function getMethodNegotiated(): array;
+    public function getMethodsNegotiated(): array;
 
     public function __toString(): string;
 }

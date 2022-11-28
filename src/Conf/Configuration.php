@@ -14,8 +14,6 @@
 namespace jzfpost\ssh2\Conf;
 
 use JetBrains\PhpStorm\Pure;
-use ReflectionClass;
-use ReflectionException;
 
 /**
  * USAGE:
@@ -27,14 +25,6 @@ use ReflectionException;
 final class Configuration
 {
     /**
-     * @var non-empty-string hostname or IP address
-     */
-    private string $host;
-    /**
-     * @var positive-int
-     */
-    private int $port;
-    /**
      * @var positive-int the response timeout in seconds (s)
      */
     private int $timeout = 10;
@@ -42,10 +32,6 @@ final class Configuration
      * @var positive-int Delay execution in microseconds (ms)
      */
     private int $wait = 3500;
-    /**
-     * @var non-empty-string|false Encoding characters
-     */
-    private string|false $encoding = false;
     /**
      * Methods may be an associative array with any of the ssh2 connect parameters
      * @param array<array-key, string|array<array-key, string>> $methods
@@ -76,10 +62,10 @@ final class Configuration
      * ]
      */
     private array $callbacks = [
-        'ignore' => 'jzfpost\\Conf\\Callbacks::ignore_cb',
-        'macerror' => 'jzfpost\\Conf\\Callbacks::macerror_cb',
-        'disconnect' => 'jzfpost\\Conf\\Callbacks::disconnect_cb',
-        'debug' => 'jzfpost\\Conf\\Callbacks::debug_cb'
+        'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
+        'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
+        'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
+        'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
     ];
     private TermTypeEnum $termType = TermTypeEnum::vanilla;
     /**
@@ -107,10 +93,8 @@ final class Configuration
      * @psalm-param non-empty-string $host
      * @psalm-param positive-int $port
      */
-    public function __construct(string $host = 'localhost', int $port = 22)
+    public function __construct(private string $host = 'localhost', private int $port = 22)
     {
-        $this->host = $host;
-        $this->port = $port;
     }
 
     #[Pure] public function getDefaultProperties(): array
@@ -121,7 +105,6 @@ final class Configuration
             'port' => $new->getPort(),
             'timeout' => $new->getTimeout(),
             'wait' => $new->getWait(),
-            'encoding' => $new->getEncoding(),
             'methods' => $new->getMethods(),
             'callbacks' => $new->getCallbacks(),
             'termType' => $new->getTermType(),
@@ -133,9 +116,6 @@ final class Configuration
         ];
     }
 
-    /**
-     * @return array
-     */
     #[Pure] public function getAsArray(): array
     {
         return [
@@ -143,7 +123,6 @@ final class Configuration
             'port' => $this->getPort(),
             'timeout' => $this->getTimeout(),
             'wait' => $this->getWait(),
-            'encoding' => $this->getEncoding(),
             'methods' => $this->getMethods(),
             'callbacks' => $this->getCallbacks(),
             'termType' => $this->getTermType(),
@@ -254,22 +233,6 @@ final class Configuration
     {
         $new = clone $this;
         $new->wait = $wait;
-
-        return $new;
-    }
-
-    public function getEncoding(): bool|string
-    {
-        return $this->encoding;
-    }
-
-    /**
-     * @psalm-param non-empty-string|false $encoding
-     */
-    public function setEncoding(string|false $encoding): self
-    {
-        $new = clone $this;
-        $new->encoding = $encoding;
 
         return $new;
     }

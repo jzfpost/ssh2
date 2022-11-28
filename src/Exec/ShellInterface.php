@@ -15,10 +15,7 @@ namespace jzfpost\ssh2\Exec;
 
 interface ShellInterface extends ExecInterface
 {
-    /**
-     * @param string $prompt
-     * @return ShellInterface
-     */
+
     public function open(string $prompt): ShellInterface;
 
     public function isOpened(): bool;
@@ -26,9 +23,6 @@ interface ShellInterface extends ExecInterface
     /**
      * Send command and return output, which reading while $prompt will be read.
      * Output will return without first line
-     * @param string $cmd
-     * @param string $prompt
-     * @return string
      */
     public function send(string $cmd, string $prompt): string;
 

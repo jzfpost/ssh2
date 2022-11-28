@@ -15,6 +15,7 @@ namespace jzfpost\ssh2;
 
 use jzfpost\ssh2\Auth\AuthInterface;
 use jzfpost\ssh2\Conf\Configuration;
+use jzfpost\ssh2\Conf\FPAlgorithmEnum;
 use jzfpost\ssh2\Conf\TypeInterface;
 use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\Exec\Exec;
@@ -23,18 +24,17 @@ use jzfpost\ssh2\Exec\Shell;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Stringable;
 
 use function function_exists;
 use function register_shutdown_function;
 use function is_resource;
-use function fclose;
 use function ssh2_connect;
 use function ssh2_disconnect;
 use function ssh2_methods_negotiated;
 use function ssh2_fingerprint;
 use function ssh2_auth_none;
 use function ucfirst;
-use function get_class;
 
 /**
  *
@@ -60,7 +60,6 @@ use function get_class;
  * @property-read positive-int $timeout
  * @property-read positive-int $wait
  * @property-read string|false $loggingFileName
- * @property-read string|false $encoding
  * @property-read string $dateFormat
  * @property-read array $methods
  * @property-read array $callbacks
@@ -70,33 +69,25 @@ use function get_class;
  * @property-read int $height
  * @property-read int $widthHeightType
  * @property-read string|null $pty
- * @property-read array<string, string> $logContext;
  */
-final class Ssh implements SshInterface, LoggerAwareInterface
+final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
 {
-
     private bool $isAuthorised = false;
     private ?AuthInterface $auth = null;
-    private readonly Configuration $configuration;
-    private LoggerInterface $logger;
-    /**
-     * @var Exec|false
-     */
-    private mixed $exec = false;
+    private ?ExecInterface $exec = null;
     /**
      * @var resource|closed-resource|false
      */
     private mixed $session = false;
-
     private ?string $fingerPrint = null;
-    private ?array $authMethods = null;
+    private null|bool|array $authMethods = null;
     private ?array $methodsNegotiated = null;
 
-    public function __construct(Configuration $configuration = new Configuration(), LoggerInterface $logger = new NullLogger())
+    public function __construct(
+        private readonly Configuration $configuration = new Configuration(),
+        private LoggerInterface        $logger = new NullLogger()
+    )
     {
-        $this->configuration = $configuration;
-        $this->logger = $logger;
-
         if (!function_exists('ssh2_connect')) {
             throw new SshException("ssh2_connect function doesn't exist! Please install \"ext-ssh2\" php module.");
         }
@@ -111,11 +102,8 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             "{property} set to {value} microseconds",
             $this->getLogContext() + ['{property}' => 'WAIT', '{value}' => (string) $this->wait]
         );
-        $this->logger->info($this->encoding ? "{property} set to '{value}'" : "{property} set to OFF",
-            $this->getLogContext() + ['{property}' => 'ENCODING', '{value}' => $this->encoding]
-        );
 
-        register_shutdown_function(array($this, 'disconnect'));
+        register_shutdown_function([$this, 'disconnect']);
     }
 
     public function connect(): SshInterface
@@ -128,7 +116,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
         $this->logger->notice('Trying connection to host {host}:{port}', $this->getLogContext());
 
-        $this->session = @ssh2_connect($this->host, $this->port, $this->methods, $this->callbacks);
+        $this->session = ssh2_connect($this->host, $this->port, $this->methods, $this->callbacks);
 
         if (!$this->isConnected()) {
             $this->logger->critical("Connection refused to host {host}:{port}", $this->getLogContext());
@@ -138,7 +126,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface
         $this->logger->notice('Connection established success to host {host}:{port}', $this->getLogContext());
 
         $this->getFingerPrint();
-        $this->getMethodNegotiated();
+        $this->getMethodsNegotiated();
 
         return $this;
     }
@@ -163,7 +151,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface
     {
         if ($this->exec instanceof ExecInterface) {
             $this->exec->close();
-            $this->exec = false;
+            $this->exec = null;
         }
 
         $this->isAuthorised = false;
@@ -210,16 +198,18 @@ final class Ssh implements SshInterface, LoggerAwareInterface
     /**
      * Return list of negotiated methods
      */
-    public function getMethodNegotiated(): array
+    public function getMethodsNegotiated(): array
     {
         if ($this->methodsNegotiated === null) {
-            $this->methodsNegotiated = is_resource($this->session) ? @ssh2_methods_negotiated($this->session) : [];
+            $this->methodsNegotiated = is_resource($this->session)
+                ? ssh2_methods_negotiated($this->session)
+                : throw new SshException("Not established ssh2 session");
 
             if (is_array($this->methodsNegotiated)) {
-                $this->logger->notice('Methods negotiated at {host}:{port}:', $this->logContext);
-                $this->logger->debug(print_r($this->methodsNegotiated, true), $this->logContext);
+                $this->logger->notice('Methods negotiated at {host}:{port}:', $this->getLogContext());
+                $this->logger->debug(print_r($this->methodsNegotiated, true), $this->getLogContext());
             } else {
-                $this->logger->warning('No methods negotiated at {host}:{port}:', $this->logContext);
+                $this->logger->warning('No methods negotiated at {host}:{port}:', $this->getLogContext());
             }
         }
 
@@ -228,24 +218,18 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     /**
      * Retrieve fingerprint of remote server
-     * @param int $flags
-     * flags may be either of
-     * SSH2_FINGERPRINT_MD5 or
-     * SSH2_FINGERPRINT_SHA1 logically ORed with
-     * SSH2_FINGERPRINT_HEX or
-     * SSH2_FINGERPRINT_RAW.
      * @return string the hostkey hash as a string
      * @throws SshException
      */
-    public function getFingerPrint(int $flags = 0): string
+    public function getFingerPrint(FPAlgorithmEnum $algorithm = FPAlgorithmEnum::md5): string
     {
         if ($this->fingerPrint === null) {
             $this->fingerPrint = is_resource($this->session)
-                ? @ssh2_fingerprint($this->session, $flags)
+                ? ssh2_fingerprint($this->session, $algorithm->getValue())
                 : throw new SshException("Not established ssh2 session");
 
-            $this->logger->notice('FingerPrint at {host}:{port}:', $this->logContext);
-            $this->logger->debug($this->fingerPrint, $this->logContext);
+            $this->logger->notice('Retrieve fingerPrint at {host}:{port}:', $this->getLogContext());
+            $this->logger->debug($this->fingerPrint, $this->getLogContext());
         }
 
         return $this->fingerPrint;
@@ -255,22 +239,20 @@ final class Ssh implements SshInterface, LoggerAwareInterface
      * Return an array of accepted authentication methods.
      * Return true if the server does accept "none" as an authentication
      * Call this method before auth()
-     * @param string $username
-     * @return array|bool
      * @throws SshException
      */
-    public function getAuthMethods(string $username): bool|array
+    public function getAuthMethods(string $username): null|bool|array
     {
         if ($this->authMethods === null) {
             $this->authMethods = is_resource($this->session)
-                ? @ssh2_auth_none($this->session, $username)
+                ? ssh2_auth_none($this->session, $username)
                 : throw new SshException("Not established ssh2 session");
 
             if (is_array($this->authMethods)) {
-                $this->logger->notice('Authentication methods negotiated at {host}:{port}:', $this->logContext);
-                $this->logger->debug(print_r($this->authMethods, true), $this->logContext);
+                $this->logger->notice('Authentication methods negotiated at {host}:{port}:', $this->getLogContext());
+                $this->logger->debug(print_r($this->authMethods, true), $this->getLogContext());
             } else {
-                $this->logger->warning('No authentication methods negotiated at {host}:{port}:', $this->logContext);
+                $this->logger->warning('No authentication methods negotiated at {host}:{port}:', $this->getLogContext());
             }
         }
 
@@ -279,8 +261,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     /**
      * Authenticate as "none"
-     * @param string $username Remote user name.
-     * @return self
      * @throws SshException
      */
     public function authNone(string $username): self
@@ -289,8 +269,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
     }
 
     /**
-     * @param string $username
-     * @return self
      * @throws SshException
      */
     public function authAgent(string $username): self
@@ -300,9 +278,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     /**
      * Authenticate over SSH using a plain password
-     * @param string $username
-     * @param string $password
-     * @return self
      * @throws SshException
      */
     public function authPassword(string $username, string $password): self
@@ -312,11 +287,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     /**
      * Authenticate using a public key
-     * @param string $username
-     * @param string $pubkeyFile
-     * @param string $privkeyFile
-     * @param string $passphrase If privkeyFile is encrypted (which it should be), the passphrase must be provided.
-     * @return self
      * @throws SshException
      */
     public function authPubkey(string $username, string $pubkeyFile, string $privkeyFile, string $passphrase): self
@@ -326,13 +296,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     /**
      * Authenticate using a public hostkey
-     * @param string $username
-     * @param string $hostname
-     * @param string $pubkeyFile
-     * @param string $privkeyFile
-     * @param string $passphrase If privkeyFile is encrypted (which it should be), the passphrase must be provided.
-     * @param string $localUsername
-     * @return self
      * @throws SshException
      */
     public function authHostbased(
@@ -358,8 +321,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
 
     /**
      * Authenticate over SSH
-     * @param AuthInterface $auth
-     * @return self
      * @throws SshException
      */
     public function authentication(AuthInterface $auth): self
@@ -390,16 +351,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
         return $this->isAuthorised;
     }
 
-    /**
-     * Destructor. Cleans up socket connection and command buffer.
-     *
-     * @return void
-     */
-    public function __destruct()
-    {
-        $this->disconnect();
-    }
-
     public function __get(string $name)
     {
         $getter = 'get' . ucfirst($name);
@@ -414,10 +365,11 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             if ($value instanceof TypeInterface) {
                 return $value->getValue();
             }
+
             return $value;
         }
 
-        throw new SshException('Getting unknown property: ' . get_class($this) . '::' . $name);
+        throw new SshException('Getting unknown property: ' . $this::class . '::' . $name);
     }
 
     public function __toString(): string
@@ -435,7 +387,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             '{port}' => (string) $this->port,
             '{wait}' => (string) $this->wait,
             '{timeout}' => (string) $this->timeout,
-            '{encoding}' => (string) $this->encoding ?: 'utf8',
             '{termType}' => (string) $this->termType,
             '{width}' => (string) $this->width,
             '{height}' => (string) $this->height,
@@ -443,4 +394,15 @@ final class Ssh implements SshInterface, LoggerAwareInterface
             '{pty}' => $this->pty ?? 'disabled',
         ];
     }
+
+    /**
+     * Destructor. Cleans up socket connection and command buffer.
+     *
+     * @return void
+     */
+    public function __destruct()
+    {
+        $this->disconnect();
+    }
+
 }

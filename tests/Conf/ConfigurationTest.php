@@ -15,13 +15,12 @@ final class ConfigurationTest extends TestCase
         'port' => 22,
         'timeout' => 10,
         'wait' => 3500,
-        'encoding' => false,
         'methods' => [],
         'callbacks' => [
-            'ignore' => 'jzfpost\\Conf\\Callbacks::ignore_cb',
-            'macerror' => 'jzfpost\\Conf\\Callbacks::macerror_cb',
-            'disconnect' => 'jzfpost\\Conf\\Callbacks::disconnect_cb',
-            'debug' => 'jzfpost\\Conf\\Callbacks::debug_cb'
+            'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
+            'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
+            'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
+            'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
         ],
         'termType' => TermTypeEnum::vanilla,
         'env' => null,
@@ -36,13 +35,12 @@ final class ConfigurationTest extends TestCase
         'port' => 44,
         'timeout' => 5,
         'wait' => 7000,
-        'encoding' => 'UTF8',
         'methods' => [],
         'callbacks' => [
-            'ignore' => 'jzfpost\\Conf\\Callbacks::ignore_cb',
-            'macerror' => 'jzfpost\\Conf\\Callbacks::macerror_cb',
-            'disconnect' => 'jzfpost\\Conf\\Callbacks::disconnect_cb',
-            'debug' => 'jzfpost\\Conf\\Callbacks::debug_cb'
+            'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
+            'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
+            'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
+            'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
         ],
         'termType' => TermTypeEnum::xterm,
         'env' => null,
@@ -96,11 +94,6 @@ final class ConfigurationTest extends TestCase
         $this->assertEquals($this->defaultConfiguration['env'], $this->conf->getEnv());
     }
 
-    public function testGetEncoding(): void
-    {
-        $this->assertFalse($this->conf->getEncoding());
-    }
-
     public function testGetWidth(): void
     {
         $this->assertEquals($this->defaultConfiguration['width'], $this->conf->getWidth());
@@ -151,12 +144,6 @@ final class ConfigurationTest extends TestCase
     {
         $new = (new Configuration())->setPort(7777);
         $this->assertEquals(7777, $new->getPort());
-    }
-
-    public function testSetEncoding(): void
-    {
-        $new = (new Configuration())->setEncoding('utf8');
-        $this->assertEquals('utf8', $new->getEncoding());
     }
 
     public function testSetTimeout(): void

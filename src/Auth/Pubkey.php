@@ -17,24 +17,14 @@ use function ssh2_auth_pubkey_file;
 
 final class Pubkey extends AbstractAuth
 {
-    private string $pubkeyFile;
-    private string $privkeyFile;
-    private string $passphrase;
 
-    /**
-     * @inheritDoc
-     */
     public function __construct(
-        string $username,
-        string $pubkeyFile,
-        string $privkeyFile,
-        string $passphrase = ''
+        protected readonly string $username,
+        private readonly string   $pubkeyFile,
+        private readonly string   $privkeyFile,
+        private readonly string   $passphrase = ''
     )
     {
-        parent::__construct($username);
-        $this->pubkeyFile = $pubkeyFile;
-        $this->privkeyFile = $privkeyFile;
-        $this->passphrase = $passphrase;
     }
 
     /**

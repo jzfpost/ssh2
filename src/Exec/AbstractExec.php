@@ -25,21 +25,17 @@ use function microtime;
 abstract class AbstractExec implements ExecInterface
 {
 
-    protected SshInterface $ssh;
     protected readonly Configuration $configuration;
     protected float $executeTimestamp;
-    public LoggerInterface $logger;
 
     /**
      * @var resource|closed-resource|false errors
      */
     protected mixed $stderr = false;
 
-    public function __construct(SshInterface $ssh, LoggerInterface $logger = new NullLogger)
+    public function __construct(protected SshInterface $ssh, public LoggerInterface $logger = new NullLogger)
     {
-        $this->ssh = $ssh;
         $this->configuration = $this->ssh->getConfiguration();
-        $this->logger = $logger;
 
         $this->executeTimestamp = microtime(true);
 
@@ -75,18 +71,9 @@ abstract class AbstractExec implements ExecInterface
                 );
             }
         }
-
-        if (!$this->ssh->isConnected()) {
-            $this->logger->critical("Failed connecting to host {host}:{port}", $this->ssh->getLogContext());
-            throw new SshException("Failed connecting to host $this->ssh");
-        }
-        if (false === $this->ssh->isAuthorised()) {
-            $this->logger->critical("Failed authorisation on host {host}:{port}", $this->ssh->getLogContext());
-            throw new SshException("Failed authorisation on host $this->ssh");
-        }
     }
 
-    abstract public function exec(string $cmd): string|false;
+    abstract public function exec(string $cmd): string;
 
     abstract public function close(): void;
 
@@ -96,6 +83,18 @@ abstract class AbstractExec implements ExecInterface
     public function getStderr(): mixed
     {
         return is_resource($this->stderr) ? $this->stderr : false;
+    }
+
+    protected function checkConnectionEstablished(): void
+    {
+        if (!$this->ssh->isConnected()) {
+            $this->logger->critical("Failed connecting to host {host}:{port}", $this->ssh->getLogContext());
+            throw new SshException("Failed connecting to host $this->ssh");
+        }
+        if (false === $this->ssh->isAuthorised()) {
+            $this->logger->critical("Failed authorisation on host {host}:{port}", $this->ssh->getLogContext());
+            throw new SshException("Failed authorisation on host $this->ssh");
+        }
     }
 
 }

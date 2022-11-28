@@ -25,9 +25,6 @@ final class Agent extends AbstractAuth
         return ssh2_auth_agent($session, $this->username);
     }
 
-    /**
-     * @inheritDoc
-     */
     public function setUsername(string $username): self
     {
         return new self($username);

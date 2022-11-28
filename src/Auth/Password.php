@@ -17,15 +17,12 @@ use function ssh2_auth_password;
 
 final class Password extends AbstractAuth
 {
-    private readonly string $password;
 
-    /**
-     * @inheritDoc
-     */
-    public function __construct(string $username, string $password)
+    public function __construct(
+        protected readonly string $username,
+        private readonly string   $password
+    )
     {
-        parent::__construct($username);
-        $this->password = $password;
     }
 
     /**
@@ -36,9 +33,6 @@ final class Password extends AbstractAuth
         return ssh2_auth_password($session, $this->username, $this->password);
     }
 
-    /**
-     * @inheritDoc
-     */
     public function setUsername(string $username): self
     {
         return new self($username, $this->password);

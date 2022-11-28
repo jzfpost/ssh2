@@ -19,6 +19,8 @@ use function is_resource;
 use function ssh2_shell;
 use function ssh2_fetch_stream;
 use function stream_set_blocking;
+use function stream_get_contents;
+use function fflush;
 use function microtime;
 use function utf8_encode;
 use function mb_convert_encoding;
@@ -34,20 +36,6 @@ use function fgetc;
 
 final class Shell extends AbstractExec implements ShellInterface
 {
-    /**
-     * Commands turn off pagination on terminal
-     */
-    public const TERMINAL_PAGINATION_OFF_CISCO = 'terminal length 0';
-    public const TERMINAL_PAGINATION_OFF_HUAWEI = 'screen-length 0 temporary';
-    public const TERMINAL_PAGINATION_OFF_DLINK = 'disable clipaging';
-
-    /**
-     * RegExp prompts
-     */
-    public const PROMPT_LINUX = '[^@]@[^:]+:~\$';
-    public const PROMPT_LINUX_SU = 'root@[^:]+:[^#]+#';
-    public const PROMPT_CISCO = '^[\w._-]+[#>]';
-    public const PROMPT_HUAWEI = '[[<]~?[\w._-]+[]>]';
 
     /**
      * @var resource|closed-resource|false shell
@@ -56,11 +44,12 @@ final class Shell extends AbstractExec implements ShellInterface
     private string $buffer = '';
 
     /**
-     * @inheritDoc
      * @throws SshException
      */
     public function open(string $prompt): ShellInterface
     {
+        $this->checkConnectionEstablished();
+
         $this->logger->notice('Trying opening shell at {host}:{port} connection', $this->ssh->getLogContext());
 
         if (is_resource($this->shell)) {
@@ -126,25 +115,28 @@ final class Shell extends AbstractExec implements ShellInterface
     /**
      * @throws SshException
      */
-    public function exec(string $cmd): string|false
+    public function exec(string $cmd): string
     {
+        $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
+        $this->logger->notice("Trying execute '{cmd}' at {host}:{port} connection", $context);
+
         if (is_resource($this->shell)) {
+
             $this->write($cmd);
 
             usleep($this->configuration->getWait());
 
             stream_set_timeout($this->shell, $this->configuration->getTimeout());
-            $this->buffer = stream_get_contents($this->shell);
+
+            $content = stream_get_contents($this->shell);
+            if (false === $content) {
+                $this->logger->critical("Failed to execute '{cmd}' at {host}:{port}", $context);
+                throw new SshException("Failed to execute '{cmd}' at $this->ssh");
+            }
 
             fflush($this->shell);
 
-            $buffer = $this->trimFirstLine(trim($this->buffer));
-
-            $encoding = $this->configuration->getEncoding();
-            if (is_string($encoding)) {
-                return mb_convert_encoding($buffer, $encoding);
-            }
-            return utf8_encode($buffer);
+            return  $this->trimFirstLine(trim($content));
         }
 
         $this->logger->critical("Open shell first on {host}:{port} connection", $this->ssh->getLogContext());
@@ -161,15 +153,8 @@ final class Shell extends AbstractExec implements ShellInterface
             $this->write($cmd);
             $this->readTo($prompt);
 
-            $buffer = $this->trimFirstLine(trim($this->buffer));
-            $buffer = $this->trimPrompt($buffer, $prompt);
-
-            $encoding = $this->configuration->getEncoding();
-            if (is_string($encoding)) {
-                return mb_convert_encoding($buffer, $encoding);
-            }
-
-            return utf8_encode($buffer);
+            $content = $this->trimFirstLine(trim($this->buffer));
+            return $this->trimPrompt($content, $prompt);
         }
 
         $this->logger->critical("Open shell first on {host}:{port} connection", $this->ssh->getLogContext());
@@ -178,9 +163,6 @@ final class Shell extends AbstractExec implements ShellInterface
 
     /**
      * Write command to a socket.
-     *
-     * @param string $cmd Stuff to write to socket
-     * @return void
      * @throws SshException
      */
     private function write(string $cmd): void
@@ -201,13 +183,11 @@ final class Shell extends AbstractExec implements ShellInterface
      * Reads characters from the shell and adds them to command buffer.
      * Handles telnet control characters. Stops when prompt is encountered.
      *
-     * @param string $prompt
-     * @return void
      * @throws SshException
      */
     private function readTo(string $prompt): void
     {
-        if(is_resource($this->shell)) {
+        if (is_resource($this->shell)) {
             $this->logger->info(
                 'Set prompt to "{prompt}" on shell at {host}:{port} connection',
                 $this->ssh->getLogContext() + ['{prompt}' => $prompt]
@@ -245,7 +225,7 @@ final class Shell extends AbstractExec implements ShellInterface
             } while (stream_get_meta_data($this->shell)["eof"] === false);
 
             fflush($this->shell);
-            
+
             $this->logger->debug($this->buffer, $this->ssh->getLogContext());
             $this->logger->info("Data transmission is over on shell at {host}:{port} connection", $this->ssh->getLogContext());
         }
@@ -253,22 +233,17 @@ final class Shell extends AbstractExec implements ShellInterface
 
     /**
      * Trim the first line of multiline text
-     * @param string $text
-     * @return string
      */
     private function trimFirstLine(string $text): string
     {
         if (!empty($text) && str_contains($text, PHP_EOL)) {
-            return substr($text, (int) strpos($text, PHP_EOL, 1) + 1);
+            return substr($text, (int)strpos($text, PHP_EOL, 1) + 1);
         }
         return $text;
     }
 
     /**
      * Trim the prompt string of multiline text
-     * @param string $text
-     * @param string $prompt
-     * @return string
      */
     private function trimPrompt(string $text, string $prompt): string
     {
@@ -277,8 +252,6 @@ final class Shell extends AbstractExec implements ShellInterface
 
     /**
      * Clears internal command buffer.
-     *
-     * @return void
      */
     private function clearBuffer(): void
     {

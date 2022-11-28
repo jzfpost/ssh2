@@ -26,9 +26,6 @@ final class None extends AbstractAuth
         return ssh2_auth_none($session, $this->username) === true;
     }
 
-    /**
-     * @inheritDoc
-     */
     public function setUsername(string $username): self
     {
         return new self($username);
