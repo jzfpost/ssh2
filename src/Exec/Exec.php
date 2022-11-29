@@ -14,22 +14,24 @@
 namespace jzfpost\ssh2\Exec;
 
 use jzfpost\ssh2\Exceptions\SshException;
-
+use function fclose;
+use function fflush;
 use function is_resource;
+use function microtime;
 use function ssh2_exec;
 use function ssh2_fetch_stream;
+use function stream_get_contents;
 use function stream_set_blocking;
 use function stream_set_timeout;
-use function stream_get_contents;
-use function usleep;
-use function fflush;
-use function fclose;
-use function microtime;
 use function trim;
+use function usleep;
 
 final class Exec extends AbstractExec
 {
 
+    /**
+     * @throws SshException
+     */
     public function exec(string $cmd): string
     {
         $this->checkConnectionEstablished();
@@ -41,7 +43,7 @@ final class Exec extends AbstractExec
         if (is_resource($session)) {
             $this->executeTimestamp = microtime(true);
 
-            $exec = @ssh2_exec(
+            $exec = ssh2_exec(
                 $session,
                 $cmd,
                 $this->configuration->getPty(),
@@ -61,13 +63,12 @@ final class Exec extends AbstractExec
 
             $content = stream_get_contents($exec);
             if (false === $content) {
-                $this->logger->critical("Failed to execute '{cmd}' at {host}:{port}", $context);
-                throw new SshException("Failed to execute '{cmd}' at $this->ssh");
+                $this->ssh->loggedException("Failed to execute \"$cmd\" at $this->ssh");
             }
 
             $timestamp = microtime(true) - $this->executeTimestamp;
 
-            fflush($exec);
+            @fflush($exec);
 
             $this->logger->info(
                 "Command execution time is {timestamp} microseconds",
@@ -80,16 +81,15 @@ final class Exec extends AbstractExec
             return trim($content);
         }
 
-        $this->logger->critical("Unable to exec command at {host}:{port} connection", $this->ssh->getLogContext());
-        throw new SshException("Unable to exec command at $this->ssh connection");
+        $this->ssh->loggedException("Unable to exec command at $this->ssh connection");
     }
 
     public function close(): void
     {
         $stdErr = $this->getStderr();
         if (is_resource($stdErr)) {
-            fflush($stdErr);
-            !@fclose($stdErr);
+            @fflush($stdErr);
+            @fclose($stdErr);
         }
     }
 

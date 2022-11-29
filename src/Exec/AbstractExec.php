@@ -14,11 +14,9 @@
 namespace jzfpost\ssh2\Exec;
 
 use jzfpost\ssh2\Conf\Configuration;
-use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\SshInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-
 use function is_resource;
 use function microtime;
 
@@ -88,12 +86,10 @@ abstract class AbstractExec implements ExecInterface
     protected function checkConnectionEstablished(): void
     {
         if (!$this->ssh->isConnected()) {
-            $this->logger->critical("Failed connecting to host {host}:{port}", $this->ssh->getLogContext());
-            throw new SshException("Failed connecting to host $this->ssh");
+            $this->ssh->loggedException("Failed connecting to host $this->ssh");
         }
         if (false === $this->ssh->isAuthorised()) {
-            $this->logger->critical("Failed authorisation on host {host}:{port}", $this->ssh->getLogContext());
-            throw new SshException("Failed authorisation on host $this->ssh");
+            $this->ssh->loggedException("Failed authorisation on host $this->ssh");
         }
     }
 

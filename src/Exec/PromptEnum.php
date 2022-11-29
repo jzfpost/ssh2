@@ -5,6 +5,7 @@ namespace jzfpost\ssh2\Exec;
 enum PromptEnum: string
 {
     case linux = '[^@]@[^:]+:~\$';
-    case cisco = '^[\w._-]+[#>]';
+    case cisco = '[\w._-]+[#>]';
     case huawei = '[[<]~?[\w._-]+[]>]';
+    case dlink = '[^:]:[^#]#';
 }

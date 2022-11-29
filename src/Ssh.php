@@ -13,6 +13,7 @@
 
 namespace jzfpost\ssh2;
 
+use JetBrains\PhpStorm\ArrayShape;
 use jzfpost\ssh2\Auth\AuthInterface;
 use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Conf\FPAlgorithmEnum;
@@ -21,19 +22,17 @@ use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\Exec\Exec;
 use jzfpost\ssh2\Exec\ExecInterface;
 use jzfpost\ssh2\Exec\Shell;
-use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Stringable;
-
 use function function_exists;
-use function register_shutdown_function;
 use function is_resource;
+use function register_shutdown_function;
+use function ssh2_auth_none;
 use function ssh2_connect;
 use function ssh2_disconnect;
-use function ssh2_methods_negotiated;
 use function ssh2_fingerprint;
-use function ssh2_auth_none;
+use function ssh2_methods_negotiated;
 use function ucfirst;
 
 /**
@@ -41,16 +40,22 @@ use function ucfirst;
  * USAGE:
  * ```php
  * $conf = (new Configuration('192.168.1.1'))
- *  ->setTermType('xterm');
+ *  ->setTermType('dumb');
  *
  * $ssh2 = new Ssh($conf);
  * $ssh2->connect()
  *  ->authPassword($username, $password);
  *
+ * // on router use shell
  * $shell = $ssh2->getShell()
- *  ->open(Shell::PROMPT_LINUX);
+ *  ->open(PromptEnum::cisco->value);
+ * $shell->send('terminal length 0', PromptEnum::cisco->value);
+ * $result = $shell->send('show version', PromptEnum::cisco->value);
  *
- * $result = $shell->send('ls -a', Shell::PROMPT_LINUX);
+ * //or on linux server use exec
+ * $exec = $ssh2->getExec();
+ * $result = $exec->exec('ls -a');
+ *
  *
  * $ssh2->disconnect();
  * ```
@@ -70,7 +75,7 @@ use function ucfirst;
  * @property-read int $widthHeightType
  * @property-read string|null $pty
  */
-final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
+final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, Stringable
 {
     private bool $isAuthorised = false;
     private ?AuthInterface $auth = null;
@@ -89,7 +94,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
     )
     {
         if (!function_exists('ssh2_connect')) {
-            throw new SshException("ssh2_connect function doesn't exist! Please install \"ext-ssh2\" php module.");
+            $this->loggedException("ssh2_connect function doesn't exist! Please install \"ext-ssh2\" php module.");
         }
 
         $this->logger->info("DEBUG mode is ON", $this->getLogContext());
@@ -110,17 +115,15 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
     {
         if ($this->isConnected()) {
             $this->disconnect();
-            $this->logger->critical("Connection already exists on host {host}:{port}", $this->getLogContext());
-            throw new SshException("Connection already exists on $this");
+            $this->loggedException("Connection already exists on host $this");
         }
 
         $this->logger->notice('Trying connection to host {host}:{port}', $this->getLogContext());
 
         $this->session = ssh2_connect($this->host, $this->port, $this->methods, $this->callbacks);
 
-        if (!$this->isConnected()) {
-            $this->logger->critical("Connection refused to host {host}:{port}", $this->getLogContext());
-            throw new SshException("Connection refused to host $this");
+        if (!is_resource($this->session)) {
+            $this->loggedException("Connection refused to host $this");
         }
 
         $this->logger->notice('Connection established success to host {host}:{port}', $this->getLogContext());
@@ -170,14 +173,6 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
     public function getShell(): Shell
     {
         return $this->exec instanceof Shell ? $this->exec : $this->exec = new Shell($this, $this->logger);
-    }
-
-    public function getUsername(): string
-    {
-        if ($this->auth instanceof AuthInterface) {
-            return $this->auth->getUsername();
-        }
-        throw new SshException("Not implemented username yet");
     }
 
     public function getConfiguration(): Configuration
@@ -278,6 +273,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
 
     /**
      * Authenticate over SSH using a plain password
+     *
      * @throws SshException
      */
     public function authPassword(string $username, string $password): self
@@ -287,6 +283,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
 
     /**
      * Authenticate using a public key
+     *
      * @throws SshException
      */
     public function authPubkey(string $username, string $pubkeyFile, string $privkeyFile, string $passphrase): self
@@ -296,6 +293,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
 
     /**
      * Authenticate using a public hostkey
+     *
      * @throws SshException
      */
     public function authHostbased(
@@ -321,6 +319,7 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
 
     /**
      * Authenticate over SSH
+     *
      * @throws SshException
      */
     public function authentication(AuthInterface $auth): self
@@ -328,22 +327,26 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
         $this->auth = $auth;
 
         if (!is_resource($this->session)) {
-            $this->logger->critical("Failed connecting to host {host}:{port}", $this->getLogContext());
-            throw new SshException("Failed connecting to host $this");
+            $this->loggedException("Failed connecting to host $this");
         }
         $this->logger->notice("Trying authenticate on host $this");
 
+        // after authorization, this method will not work;
         $this->getAuthMethods($auth->getUsername());
 
         $this->isAuthorised = $auth->authenticate($this->session);
 
         if (false === $this->isAuthorised) {
-            $this->logger->critical("Failed authentication on host {host}:{port}", $this->getLogContext());
-            throw new SshException("Failed authentication on host $this");
+            $this->loggedException("Failed authentication on host $this");
         }
         $this->logger->notice("Authentication success on host $this");
 
         return $this;
+    }
+
+    public function getAuth(): ?AuthInterface
+    {
+        return $this->auth;
     }
 
     public function isAuthorised(): bool
@@ -378,8 +381,19 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
     }
 
     /**
-     * @return array 'array{'{encoding}': non-falsy-string, '{height}': numeric-string, '{host}': non-empty-string, '{port}': numeric-string, '{pty}': "disabled"|mixed, '{termType}': string, '{timeout}': numeric-string, '{wait}': numeric-string, '{widthHeightType}': "TERM_UNIT_CHARS"|"TERM_UNIT_PIXELS", '{width}': numeric-string}
+     * @psalm-return array 'array{'{encoding}': non-falsy-string, '{height}': numeric-string, '{host}': non-empty-string, '{port}': numeric-string, '{pty}': "disabled"|mixed, '{termType}': string, '{timeout}': numeric-string, '{wait}': numeric-string, '{widthHeightType}': "TERM_UNIT_CHARS"|"TERM_UNIT_PIXELS", '{width}': numeric-string}
      */
+    #[ArrayShape([
+        '{host}' => "string",
+        '{port}' => "string",
+        '{wait}' => "string",
+        '{timeout}' => "string",
+        '{termType}' => "string",
+        '{width}' => "string",
+        '{height}' => "string",
+        '{widthHeightType}' => "string",
+        '{pty}' => "string"
+    ])]
     public function getLogContext(): array
     {
         return [
@@ -393,6 +407,15 @@ final class Ssh implements SshInterface, LoggerAwareInterface, Stringable
             '{widthHeightType}' => $this->widthHeightType === SSH2_TERM_UNIT_CHARS ? 'TERM_UNIT_CHARS' : 'TERM_UNIT_PIXELS',
             '{pty}' => $this->pty ?? 'disabled',
         ];
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function loggedException(string $message, array $context = []): never
+    {
+        $this->logger->critical($message, $this->getLogContext() + $context);
+        throw new SshException($message);
     }
 
     /**

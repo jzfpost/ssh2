@@ -14,8 +14,6 @@
 namespace jzfpost\ssh2;
 
 use jzfpost\ssh2\Auth\AuthInterface;
-use jzfpost\ssh2\Conf\Configuration;
-use Psr\Log\LoggerInterface;
 
 interface SshInterface
 {
@@ -25,26 +23,20 @@ interface SshInterface
 
     public function disconnect(): void;
 
-    public function authentication(AuthInterface $auth): SshInterface;
-
-    public function getUsername(): string;
-
-    public function isAuthorised(): bool;
-
     /**
      * @return resource|false
      */
     public function getSession(): mixed;
 
-    public function getConfiguration(): Configuration;
-
-    public function getLogger(): LoggerInterface;
-
-    public function getLogContext(): array;
+    public function getMethodsNegotiated(): array;
 
     public function getFingerPrint(): string;
 
-    public function getMethodsNegotiated(): array;
+    public function getAuthMethods(string $username): null|bool|array;
 
-    public function __toString(): string;
+    public function authentication(AuthInterface $auth): SshInterface;
+
+    public function getAuth(): ?AuthInterface;
+
+    public function isAuthorised(): bool;
 }
