@@ -13,6 +13,7 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use JetBrains\PhpStorm\Pure;
 use function ssh2_auth_agent;
 
 final class Agent extends AbstractAuth
@@ -25,7 +26,7 @@ final class Agent extends AbstractAuth
         return ssh2_auth_agent($session, $this->username);
     }
 
-    public function setUsername(string $username): self
+    #[Pure] public function setUsername(string $username): self
     {
         return new self($username);
     }

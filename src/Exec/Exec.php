@@ -30,6 +30,7 @@ final class Exec extends AbstractExec
 {
 
     /**
+     * @psalm-suppress PossiblyNullArgument
      * @throws SshException
      */
     public function exec(string $cmd): string
@@ -37,7 +38,7 @@ final class Exec extends AbstractExec
         $this->checkConnectionEstablished();
 
         $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
-        $this->logger->notice("Trying execute '{cmd}' at {host}:{port} connection", $context);
+        $this->logger->notice("Trying execute \"{cmd}\"...", $context);
 
         $session = $this->ssh->getSession();
         if (is_resource($session)) {
@@ -50,38 +51,44 @@ final class Exec extends AbstractExec
                 $this->configuration->getEnv(),
                 $this->configuration->getWidth(),
                 $this->configuration->getHeight(),
-                $this->configuration->getWidthHeightType()->getValue()
+                $this->configuration->getWidthHeightType()
             );
 
-            $this->stderr = ssh2_fetch_stream($exec, SSH2_STREAM_STDERR);
-            stream_set_blocking($this->stderr, true);
-            stream_set_blocking($exec, true);
+            if (is_resource($exec)) {
+                $this->stderr = ssh2_fetch_stream($exec, SSH2_STREAM_STDERR);
+                stream_set_blocking($this->stderr, true);
+                stream_set_blocking($exec, true);
 
-            usleep($this->configuration->getWait());
+                usleep($this->configuration->getWait());
 
-            stream_set_timeout($exec, $this->configuration->getTimeout());
+                stream_set_timeout($exec, $this->configuration->getTimeout());
 
-            $content = stream_get_contents($exec);
-            if (false === $content) {
-                $this->ssh->loggedException("Failed to execute \"$cmd\" at $this->ssh");
+                $content = stream_get_contents($exec);
+                if (false === $content) {
+                    $message = "Failed to execute \"$cmd\"";
+                    $this->logger->critical($message, $this->ssh->getLogContext());
+                    throw new SshException($message);
+                }
+
+                $timestamp = microtime(true) - $this->executeTimestamp;
+
+                @fflush($exec);
+
+                $this->logger->info(
+                    "Command execution time is {timestamp} microseconds",
+                    $this->ssh->getLogContext() + ['{timestamp}' => (string) $timestamp]
+                );
+
+                $this->logger->debug($content, $this->ssh->getLogContext());
+                $this->logger->info("Data transmission is over", $this->ssh->getLogContext());
+
+                return trim($content);
             }
-
-            $timestamp = microtime(true) - $this->executeTimestamp;
-
-            @fflush($exec);
-
-            $this->logger->info(
-                "Command execution time is {timestamp} microseconds",
-                $this->ssh->getLogContext() + ['{timestamp}' => (string) $timestamp]
-            );
-
-            $this->logger->debug($content, $this->ssh->getLogContext());
-            $this->logger->info("Data transmission is over at {host}:{port} connection", $this->ssh->getLogContext());
-
-            return trim($content);
         }
 
-        $this->ssh->loggedException("Unable to exec command at $this->ssh connection");
+        $message = "Unable to exec command";
+        $this->logger->critical($message, $this->ssh->getLogContext());
+        throw new SshException($message);
     }
 
     public function close(): void

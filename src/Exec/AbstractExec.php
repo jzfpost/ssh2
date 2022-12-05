@@ -14,6 +14,7 @@
 namespace jzfpost\ssh2\Exec;
 
 use jzfpost\ssh2\Conf\Configuration;
+use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\SshInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -23,49 +24,52 @@ use function microtime;
 abstract class AbstractExec implements ExecInterface
 {
 
-    protected readonly Configuration $configuration;
     protected float $executeTimestamp;
-
     /**
      * @var resource|closed-resource|false errors
      */
     protected mixed $stderr = false;
 
-    public function __construct(protected SshInterface $ssh, public LoggerInterface $logger = new NullLogger)
+    public function __construct(
+        protected SshInterface $ssh,
+        protected              readonly Configuration $configuration = new Configuration(),
+        public LoggerInterface $logger = new NullLogger)
     {
-        $this->configuration = $this->ssh->getConfiguration();
-
+        $conf = $this->configuration->getAsArray();
         $this->executeTimestamp = microtime(true);
 
         $this->logger->info(
             "{property} set to {value}",
-            $this->ssh->getLogContext() + ['{property}' => 'TERMTYPE', '{value}' => $this->configuration->getTermType()->getValue()]
+            $ssh->getLogContext() + ['{property}' => 'TERMTYPE', '{value}' => $configuration->getTermType()]
         );
         $this->logger->info(
             "{property} set to {value}",
-            $this->ssh->getLogContext() + ['{property}' => 'WIDTH', '{value}' => (string) $this->configuration->getWidth()]
+            $ssh->getLogContext() + ['{property}' => 'WIDTH', '{value}' => (string) $configuration->getWidth()]
         );
         $this->logger->info(
             "{property} set to {value}",
-            $this->ssh->getLogContext() + ['{property}' => 'HEIGHT', '{value}' => (string) $this->configuration->getHeight()]
+            $ssh->getLogContext() + ['{property}' => 'HEIGHT', '{value}' => (string) $configuration->getHeight()]
         );
 
         $this->logger->info(
             "{property} set to {value}",
-            $this->ssh->getLogContext() + ['{property}' => 'WIDTHHEIGHTTYPE', '{value}' => $this->configuration->getWidthHeightType()->name]
+            $ssh->getLogContext() + ['{property}' => 'WIDTHHEIGHTTYPE', '{value}' => $configuration->getWidthHeightType()]
         );
 
-        $env = $this->configuration->getEnv();
-        if ($env === null) {
+        if ($conf['env'] === null) {
             $this->logger->info(
                 "{property} set to {value}",
-                $this->ssh->getLogContext() + ['{property}' => 'ENV', '{value}' => 'NULL']
+                $ssh->getLogContext() + ['{property}' => 'ENV', '{value}' => 'NULL']
             );
         } else {
-            foreach ($env as $key => $value) {
+            /**
+             * @psalm-var string $key
+             * @psalm-var string $value
+             */
+            foreach ($conf['env'] as $key => $value) {
                 $this->logger->info(
                     "{property} set to {value}",
-                    $this->ssh->getLogContext() + ['{property}' => 'ENV', '{value}' => $key . ' => ' . $value]
+                    $ssh->getLogContext() + ['{property}' => 'ENV', '{value}' => $key . ' => ' . $value]
                 );
             }
         }
@@ -86,10 +90,14 @@ abstract class AbstractExec implements ExecInterface
     protected function checkConnectionEstablished(): void
     {
         if (!$this->ssh->isConnected()) {
-            $this->ssh->loggedException("Failed connecting to host $this->ssh");
+            $message = "Failed connection";
+            $this->logger->critical($message, $this->ssh->getLogContext());
+            throw new SshException($message);
         }
         if (false === $this->ssh->isAuthorised()) {
-            $this->ssh->loggedException("Failed authorisation on host $this->ssh");
+            $message = "Failed authorisation";
+            $this->logger->critical($message, $this->ssh->getLogContext());
+            throw new SshException($message);
         }
     }
 

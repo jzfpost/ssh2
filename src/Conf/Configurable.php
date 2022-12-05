@@ -5,9 +5,7 @@
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2;
-
-use jzfpost\ssh2\Conf\Configuration;
+namespace jzfpost\ssh2\Conf;
 
 interface Configurable
 {

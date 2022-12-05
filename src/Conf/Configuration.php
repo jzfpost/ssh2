@@ -13,8 +13,6 @@
 
 namespace jzfpost\ssh2\Conf;
 
-use JetBrains\PhpStorm\Pure;
-
 /**
  * USAGE:
  * ```php
@@ -22,19 +20,19 @@ use JetBrains\PhpStorm\Pure;
  * $ssh = new SSH($conf);
  * ```
  */
-final class Configuration
+final class Configuration implements ConfigurationInterface
 {
     /**
-     * @var positive-int the response timeout in seconds (s)
+     * @psalm-var positive-int the response timeout in seconds (s)
      */
     private int $timeout = 10;
     /**
-     * @var positive-int Delay execution in microseconds (ms)
+     * @psalm-var positive-int Delay execution in microseconds (ms)
      */
     private int $wait = 3500;
     /**
      * Methods may be an associative array with any of the ssh2 connect parameters
-     * @param array<array-key, string|array<array-key, string>> $methods
+     * @psalm-param array<array-key, string|array<array-key, string>> $methods
      * $methods = [
      *     'kex' => 'diffie-hellman-group1-sha1, diffie-hellman-group14-sha1, diffie-hellman-group-exchange-sha1',
      *     'hostkey' => 'ssh-rsa, ssh-dss',
@@ -42,7 +40,7 @@ final class Configuration
      *         'crypt' => 'rijndael-cbc@lysator.liu.se, aes256-cbc, aes192-cbc, aes128-cbc, 3des-cbc, blowfish-cbc, cast128-cbc, arcfour',
      *         'comp' => 'zlib|none',
      *         'mac' => 'hmac-sha1, hmac-sha1-96, hmac-ripemd160, hmac-ripemd160@openssh.com'
-     *      ]
+     *      ],
      *     'server_to_client' => [
      *         'crypt' => 'rijndael-cbc@lysator.liu.se, aes256-cbc, aes192-cbc, aes128-cbc, 3des-cbc, blowfish-cbc, cast128-cbc, arcfour',
      *         'comp' => 'zlib|none',
@@ -50,10 +48,10 @@ final class Configuration
      *     ]
      * ]
      */
-    private array $methods = [];
+    private ?array $methods = null;
     /**
      * Maybe an associative array with any of the ssh2 connect parameters
-     * @param array<array-key, callable> $callbacks
+     * @psalm-param array<array-key, callable> $callbacks
      * $callbacks = [
      *     'ignore' => 'self::ignore_cb($message)',
      *     'debug' => 'self::debug_cb($message, $language, $always_display)',
@@ -61,23 +59,20 @@ final class Configuration
      *     'disconnect' => 'self::disconnect_cb($reason, $message, $language)'
      * ]
      */
-    private array $callbacks = [
+    private ?array $callbacks = [
         'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
         'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
         'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
         'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
     ];
     private TermTypeEnum $termType = TermTypeEnum::vanilla;
-    /**
-     * @var array<string, string>|null
-     */
     private ?array $env = null;
     /**
-     * @var positive-int
+     * @psalm-var positive-int
      */
     private int $width = SSH2_DEFAULT_TERM_WIDTH;
     /**
-     * @var positive-int
+     * @psalm-var positive-int
      */
     private int $height = SSH2_DEFAULT_TERM_HEIGHT;
     /**
@@ -89,95 +84,68 @@ final class Configuration
     private WidthHeightTypeEnum $widthHeightType = WidthHeightTypeEnum::chars;
     private ?string $pty = null;
 
+    public function get(string $property): mixed
+    {
+        return $this->$property;
+    }
+
     /**
-     * @psalm-param non-empty-string $host
-     * @psalm-param positive-int $port
+     * @psalm-suppress MixedAssignment
      */
-    public function __construct(private string $host = 'localhost', private int $port = 22)
+    public function set(string $property, mixed $value): self
     {
-    }
+        $new = clone $this;
+        $new->$property = $value;
 
-    #[Pure] public function getDefaultProperties(): array
-    {
-        $new = new self();
-        return [
-            'host' => $new->getHost(),
-            'port' => $new->getPort(),
-            'timeout' => $new->getTimeout(),
-            'wait' => $new->getWait(),
-            'methods' => $new->getMethods(),
-            'callbacks' => $new->getCallbacks(),
-            'termType' => $new->getTermType(),
-            'env' => $new->getEnv(),
-            'width' => $new->getWidth(),
-            'height' => $new->getHeight(),
-            'widthHeightType' => $new->getWidthHeightType(),
-            'pty' => $new->getPty()
-        ];
-    }
-
-    #[Pure] public function getAsArray(): array
-    {
-        return [
-            'host' => $this->getHost(),
-            'port' => $this->getPort(),
-            'timeout' => $this->getTimeout(),
-            'wait' => $this->getWait(),
-            'methods' => $this->getMethods(),
-            'callbacks' => $this->getCallbacks(),
-            'termType' => $this->getTermType(),
-            'env' => $this->getEnv(),
-            'width' => $this->getWidth(),
-            'height' => $this->getHeight(),
-            'widthHeightType' => $this->getWidthHeightType(),
-            'pty' => $this->getPty()
-        ];
+        return $new;
     }
 
     /**
-     * @param array<string, bool|positive-int|non-empty-string|string> $options
-     * @return $this
+     * @psalm-suppress MixedAssignment
+     */
+    public function getDefaultProperties(): array
+    {
+        $array = [];
+        $properties = get_class_vars(self::class);
+
+        foreach ($properties as $property => $value) {
+            $array[$property] = $value instanceof TypeEnumInterface ? $value->getValue() : $value;
+        }
+
+        return $array;
+    }
+
+    /**
+     * @psalm-suppress MixedAssignment
+     */
+    public function getAsArray(): array
+    {
+        $array = [];
+        $properties = get_class_vars(self::class);
+        $keys = array_keys($properties);
+
+        foreach ($keys as $property) {
+            $value = $this->$property;
+            $array[$property] = $value instanceof TypeEnumInterface ? $value->getValue() : $value;
+        }
+
+        return $array;
+    }
+
+    /**
+     * @psalm-param array<string, bool|positive-int|non-empty-string|string|array> $options
+     * @psalm-suppress MixedMethodCall
      */
     public function setFromArray(array $options = []): self
     {
         $new = clone $this;
+
         foreach ($options as $property => $value) {
-            if (property_exists($new, $property)) {
-                $new->$property = $value;
-            }
+
+            $new->$property = $this->$property instanceof TypeEnumInterface
+                ? $this->$property->getFromValue($value)
+                : $value;
         }
-
-        return $new;
-    }
-
-    public function getHost(): string
-    {
-        return $this->host;
-    }
-
-    /**
-     * @psalm-param non-empty-string $host
-     */
-    public function setHost(string $host): self
-    {
-        $new = clone $this;
-        $new->host = $host;
-
-        return $new;
-    }
-
-    public function getPort(): int
-    {
-        return $this->port;
-    }
-
-    /**
-     * @psalm-param positive-int $port
-     */
-    public function setPort(int $port): self
-    {
-        $new = clone $this;
-        $new->port = $port;
 
         return $new;
     }
@@ -192,15 +160,9 @@ final class Configuration
      */
     public function setTimeout(int $timeout): self
     {
-        $new = clone $this;
-        $new->timeout = $timeout;
-
-        return $new;
+        return $this->set('timeout', $timeout);
     }
 
-    /**
-     * @return array<string, string>|null
-     */
     public function getEnv(): ?array
     {
         return $this->env;
@@ -210,12 +172,9 @@ final class Configuration
      * @param array<string, string>|null $env
      * @return $this
      */
-    public function setEnv(array $env = null): self
+    public function setEnv(?array $env = null): self
     {
-        $new = clone $this;
-        $new->env = $env;
-
-        return $new;
+        return $this->set('env', $env);
     }
 
     /**
@@ -231,49 +190,37 @@ final class Configuration
      */
     public function setWait(int $wait): self
     {
-        $new = clone $this;
-        $new->wait = $wait;
-
-        return $new;
+        return $this->set('wait', $wait);
     }
 
-    public function getMethods(): array
+    public function getMethods(): ?array
     {
         return $this->methods;
     }
 
-    public function setMethods(array $methods): self
+    public function setMethods(?array $methods): self
     {
-        $new = clone $this;
-        $new->methods = $methods;
-
-        return $new;
+        return $this->set('methods', $methods);
     }
 
-    public function getCallbacks(): array
+    public function getCallbacks(): ?array
     {
         return $this->callbacks;
     }
 
-    public function setCallbacks(array $callbacks): self
+    public function setCallbacks(?array $callbacks): self
     {
-        $new = clone $this;
-        $new->callbacks = $callbacks;
-
-        return $new;
+        return $this->set('callbacks', $callbacks);
     }
 
-    public function getTermType(): TermTypeEnum
+    public function getTermType(): string
     {
-        return $this->termType;
+        return $this->termType->getValue();
     }
 
     public function setTermType(TermTypeEnum $termType): self
     {
-        $new = clone $this;
-        $new->termType = $termType;
-
-        return $new;
+        return $this->set('termType', $termType);
     }
 
     /**
@@ -289,10 +236,7 @@ final class Configuration
      */
     public function setWidth(int $width): self
     {
-        $new = clone $this;
-        $new->width = $width;
-
-        return $new;
+        return $this->set('width', $width);
     }
 
     /**
@@ -308,23 +252,17 @@ final class Configuration
      */
     public function setHeight(int $height): self
     {
-        $new = clone $this;
-        $new->height = $height;
-
-        return $new;
+        return $this->set('height', $height);
     }
 
-    public function getWidthHeightType(): WidthHeightTypeEnum
+    public function getWidthHeightType(): int
     {
-        return $this->widthHeightType;
+        return $this->widthHeightType->getValue();
     }
 
     public function setWidthHeightType(WidthHeightTypeEnum $widthHeightType): self
     {
-        $new = clone $this;
-        $new->widthHeightType = $widthHeightType;
-
-        return $new;
+        return $this->set('widthHeightType', $widthHeightType);
     }
 
     public function getPty(): ?string
@@ -334,9 +272,6 @@ final class Configuration
 
     public function setPty(?string $pty = null): self
     {
-        $new = clone $this;
-        $new->pty = $pty;
-
-        return $new;
+        return $this->set('pty', $pty);
     }
 }

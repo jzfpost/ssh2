@@ -13,16 +13,18 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use JetBrains\PhpStorm\Pure;
 use function ssh2_auth_password;
 
 final class Password extends AbstractAuth
 {
 
-    public function __construct(
-        protected readonly string $username,
-        private readonly string   $password
+    #[Pure] public function __construct(
+        string  $username,
+        private readonly string $password
     )
     {
+        parent::__construct($username);
     }
 
     /**
@@ -33,7 +35,7 @@ final class Password extends AbstractAuth
         return ssh2_auth_password($session, $this->username, $this->password);
     }
 
-    public function setUsername(string $username): self
+    #[Pure] public function setUsername(string $username): self
     {
         return new self($username, $this->password);
     }
@@ -43,7 +45,7 @@ final class Password extends AbstractAuth
         return '';
     }
 
-    public function setPassword(string $password): self
+    #[Pure] public function setPassword(string $password): self
     {
         return new self($this->username, $password);
     }

@@ -15,6 +15,7 @@ namespace jzfpost\ssh2\Logger;
 
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
+use Stringable;
 
 final class FileLogger extends AbstractLogger implements LoggerInterface
 {
@@ -30,7 +31,7 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
     /**
      * @inheritDoc
      */
-    public function log($level, string|\Stringable $message, array $context = []): void
+    public function log($level, string|Stringable $message, array $context = []): void
     {
         /** @psalm-var array<array-key, float|int|string> $context */
 
@@ -47,8 +48,7 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
         }
 
         if ($level === 'debug') {
-            $text = PHP_EOL
-                . sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
+            $text = sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
                 . PHP_EOL
                 . '---------------- ---------------- ----------------' . PHP_EOL
                 . $text
@@ -66,7 +66,7 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
         }
 
         if (!file_exists($this->filePath)) {
-            touch($this->filePath);
+            @touch($this->filePath);
         }
 
         @file_put_contents($this->filePath, $text, FILE_APPEND);

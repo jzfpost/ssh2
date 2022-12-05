@@ -12,7 +12,7 @@ final class WidthHeightTypeEnumTest extends TestCase
 
     public function testTypeInterface()
     {
-        $this->assertInstanceOf(TypeInterface::class, WidthHeightTypeEnum::chars);
+        $this->assertInstanceOf(TypeEnumInterface::class, WidthHeightTypeEnum::chars);
     }
 
     public function testGetValue()

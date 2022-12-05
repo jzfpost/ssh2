@@ -13,6 +13,7 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use JetBrains\PhpStorm\Pure;
 use function ssh2_auth_none;
 
 final class None extends AbstractAuth
@@ -26,7 +27,7 @@ final class None extends AbstractAuth
         return ssh2_auth_none($session, $this->username) === true;
     }
 
-    public function setUsername(string $username): self
+    #[Pure] public function setUsername(string $username): self
     {
         return new self($username);
     }

@@ -13,20 +13,22 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use JetBrains\PhpStorm\Pure;
 use function ssh2_auth_hostbased_file;
 
 final class Hostbased extends AbstractAuth
 {
 
-    public function __construct(
-        protected readonly string $username,
-        private readonly string   $hostname,
-        private readonly string   $pubkeyFile,
-        private readonly string   $privkeyFile,
-        private readonly string   $passphrase = '',
-        private readonly string   $localUsername = ''
+    #[Pure] public function __construct(
+        string  $username,
+        private readonly string $hostname,
+        private readonly string $pubkeyFile,
+        private readonly string $privkeyFile,
+        private readonly string $passphrase = '',
+        private readonly string $localUsername = ''
     )
     {
+        parent::__construct($username);
     }
 
     /**
@@ -45,7 +47,7 @@ final class Hostbased extends AbstractAuth
         );
     }
 
-    public function setUsername(string $username): self
+    #[Pure] public function setUsername(string $username): self
     {
         return new self(
             $username,

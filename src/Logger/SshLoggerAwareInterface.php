@@ -5,20 +5,15 @@
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2;
+namespace jzfpost\ssh2\Logger;
 
-use jzfpost\ssh2\Exceptions\SshException;
+use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 
-interface SshLoggerAwareInterface extends \Psr\Log\LoggerAwareInterface
+interface SshLoggerAwareInterface extends LoggerAwareInterface
 {
     public function getLogger(): LoggerInterface;
 
     public function getLogContext(): array;
-
-    /**
-     * @throws SshException
-     */
-    public function loggedException(string $message, array $context = []): never;
 
 }

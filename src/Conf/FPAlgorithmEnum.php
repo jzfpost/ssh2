@@ -2,7 +2,7 @@
 
 namespace jzfpost\ssh2\Conf;
 
-enum FPAlgorithmEnum implements TypeInterface
+enum FPAlgorithmEnum implements TypeEnumInterface
 {
     case md5;
     case sha1;
@@ -17,5 +17,15 @@ enum FPAlgorithmEnum implements TypeInterface
             self::hex => SSH2_FINGERPRINT_HEX,
             self::raw => SSH2_FINGERPRINT_RAW
         };
+    }
+
+    public function getFromValue(int|string $value): FPAlgorithmEnum
+    {
+        foreach (self::cases() as $case) {
+            if ($case->getValue() === $value || $case->name === $value) {
+                return $case;
+            }
+        }
+        throw new \InvalidArgumentException("Not implements " . self::class . " with case: $value");
     }
 }

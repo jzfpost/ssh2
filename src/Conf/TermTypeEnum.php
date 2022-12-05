@@ -13,7 +13,7 @@
 
 namespace jzfpost\ssh2\Conf;
 
-enum TermTypeEnum implements TypeInterface
+enum TermTypeEnum implements TypeEnumInterface
 {
     case ansi;
     case dumb;
@@ -29,5 +29,15 @@ enum TermTypeEnum implements TypeInterface
     public function getValue(): string
     {
         return $this->name;
+    }
+
+    public function getFromValue(int|string $value): TermTypeEnum
+    {
+        foreach (self::cases() as $case) {
+            if ($case->getValue() === $value) {
+                return $case;
+            }
+        }
+        throw new \InvalidArgumentException("Not implements " . self::class . " with case: $value");
     }
 }

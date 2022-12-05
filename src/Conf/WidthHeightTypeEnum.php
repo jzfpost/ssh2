@@ -13,7 +13,7 @@
 
 namespace jzfpost\ssh2\Conf;
 
-enum WidthHeightTypeEnum implements TypeInterface
+enum WidthHeightTypeEnum implements TypeEnumInterface
 {
     /**
      * SSH2_TERM_UNIT_CHARS
@@ -27,8 +27,18 @@ enum WidthHeightTypeEnum implements TypeInterface
     public function getValue(): int
     {
         return match ($this) {
-            WidthHeightTypeEnum::chars => SSH2_TERM_UNIT_CHARS,
-            WidthHeightTypeEnum::pixels => SSH2_TERM_UNIT_PIXELS,
+            self::chars => SSH2_TERM_UNIT_CHARS,
+            self::pixels => SSH2_TERM_UNIT_PIXELS,
         };
+    }
+
+    public function getFromValue(int|string $value): WidthHeightTypeEnum
+    {
+        foreach (self::cases() as $case) {
+            if ($case->getValue() === $value || $case->name === $value) {
+                return $case;
+            }
+        }
+        throw new \InvalidArgumentException("Not implements " . self::class . " with case: $value");
     }
 }

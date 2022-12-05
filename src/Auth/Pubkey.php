@@ -13,18 +13,20 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use JetBrains\PhpStorm\Pure;
 use function ssh2_auth_pubkey_file;
 
 final class Pubkey extends AbstractAuth
 {
 
-    public function __construct(
-        protected readonly string $username,
-        private readonly string   $pubkeyFile,
-        private readonly string   $privkeyFile,
-        private readonly string   $passphrase = ''
+    #[Pure] public function __construct(
+        string  $username,
+        private readonly string $pubkeyFile,
+        private readonly string $privkeyFile,
+        private readonly string $passphrase = ''
     )
     {
+        parent::__construct($username);
     }
 
     /**
@@ -41,10 +43,7 @@ final class Pubkey extends AbstractAuth
         );
     }
 
-    /**
-     * @inheritDoc
-     */
-    public function setUsername(string $username): self
+    #[Pure] public function setUsername(string $username): self
     {
         return new self($username, $this->pubkeyFile, $this->privkeyFile, $this->passphrase);
     }

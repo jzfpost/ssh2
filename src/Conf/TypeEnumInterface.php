@@ -13,7 +13,9 @@
 
 namespace jzfpost\ssh2\Conf;
 
-interface TypeInterface
+interface TypeEnumInterface
 {
     public function getValue(): int|string;
+
+    public function getFromValue(int|string $value): TypeEnumInterface;
 }

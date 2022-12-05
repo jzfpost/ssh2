@@ -17,14 +17,13 @@ use JetBrains\PhpStorm\ArrayShape;
 use jzfpost\ssh2\Auth\AuthInterface;
 use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Conf\FPAlgorithmEnum;
-use jzfpost\ssh2\Conf\TypeInterface;
+use jzfpost\ssh2\Conf\TypeEnumInterface;
 use jzfpost\ssh2\Exceptions\SshException;
 use jzfpost\ssh2\Exec\Exec;
 use jzfpost\ssh2\Exec\ExecInterface;
 use jzfpost\ssh2\Exec\Shell;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Stringable;
 use function function_exists;
 use function is_resource;
 use function register_shutdown_function;
@@ -75,7 +74,7 @@ use function ucfirst;
  * @property-read int $widthHeightType
  * @property-read string|null $pty
  */
-final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, Stringable
+final class Ssh implements SshInterface
 {
     private bool $isAuthorised = false;
     private ?AuthInterface $auth = null;
@@ -87,51 +86,43 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
     private ?string $fingerPrint = null;
     private null|bool|array $authMethods = null;
     private ?array $methodsNegotiated = null;
+    /**
+     * @var array<string, string>
+     */
+    private array $context = [];
 
     public function __construct(
-        private readonly Configuration $configuration = new Configuration(),
-        private LoggerInterface        $logger = new NullLogger()
+        private                 readonly Configuration $configuration = new Configuration(),
+        private LoggerInterface $logger = new NullLogger()
     )
     {
         if (!function_exists('ssh2_connect')) {
-            $this->loggedException("ssh2_connect function doesn't exist! Please install \"ext-ssh2\" php module.");
+            throw new SshException("ssh2_connect function doesn't exist! Please install \"ext-ssh2\" php module.");
         }
-
-        $this->logger->info("DEBUG mode is ON", $this->getLogContext());
-        $this->logger->info("LOGGING start", $this->getLogContext());
-        $this->logger->info(
-            "{property} set to {value} seconds",
-            $this->getLogContext() + ['{property}' => 'TIMEOUT', '{value}' => (string) $this->timeout]
-        );
-        $this->logger->info(
-            "{property} set to {value} microseconds",
-            $this->getLogContext() + ['{property}' => 'WAIT', '{value}' => (string) $this->wait]
-        );
 
         register_shutdown_function([$this, 'disconnect']);
     }
 
-    public function connect(): SshInterface
+    public function connect(string $host = 'localhost', int $port = 22, LoggerInterface $logger = null): SshInterface
     {
-        if ($this->isConnected()) {
-            $this->disconnect();
-            $this->loggedException("Connection already exists on host $this");
+        $new = new self($this->configuration, $logger ?? $this->logger);
+
+        $new->setContext($host, $port);
+
+        $new->logger->notice("Trying connection...", $new->getLogContext());
+
+        $new->session = ssh2_connect($host, $port, $new->methods, $new->callbacks);
+
+        if (!is_resource($new->session)) {
+            $new->loggedException("Connection refused");
         }
 
-        $this->logger->notice('Trying connection to host {host}:{port}', $this->getLogContext());
+        $new->logger->notice("Connection established success", $new->getLogContext());
 
-        $this->session = ssh2_connect($this->host, $this->port, $this->methods, $this->callbacks);
+        $new->getFingerPrint();
+        $new->getMethodsNegotiated();
 
-        if (!is_resource($this->session)) {
-            $this->loggedException("Connection refused to host $this");
-        }
-
-        $this->logger->notice('Connection established success to host {host}:{port}', $this->getLogContext());
-
-        $this->getFingerPrint();
-        $this->getMethodsNegotiated();
-
-        return $this;
+        return $new;
     }
 
     /**
@@ -167,12 +158,12 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
 
     public function getExec(): Exec
     {
-        return $this->exec instanceof Exec ? $this->exec : $this->exec = new Exec($this, $this->logger);
+        return $this->exec instanceof Exec ? $this->exec : $this->exec = new Exec($this, $this->configuration, $this->logger);
     }
 
     public function getShell(): Shell
     {
-        return $this->exec instanceof Shell ? $this->exec : $this->exec = new Shell($this, $this->logger);
+        return $this->exec instanceof Shell ? $this->exec : $this->exec = new Shell($this, $this->configuration, $this->logger);
     }
 
     public function getConfiguration(): Configuration
@@ -201,10 +192,10 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
                 : throw new SshException("Not established ssh2 session");
 
             if (is_array($this->methodsNegotiated)) {
-                $this->logger->notice('Methods negotiated at {host}:{port}:', $this->getLogContext());
+                $this->logger->notice("Methods negotiated:", $this->getLogContext());
                 $this->logger->debug(print_r($this->methodsNegotiated, true), $this->getLogContext());
             } else {
-                $this->logger->warning('No methods negotiated at {host}:{port}:', $this->getLogContext());
+                $this->logger->warning("No methods negotiated:", $this->getLogContext());
             }
         }
 
@@ -223,7 +214,7 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
                 ? ssh2_fingerprint($this->session, $algorithm->getValue())
                 : throw new SshException("Not established ssh2 session");
 
-            $this->logger->notice('Retrieve fingerPrint at {host}:{port}:', $this->getLogContext());
+            $this->logger->notice("Retrieve fingerPrint:", $this->getLogContext());
             $this->logger->debug($this->fingerPrint, $this->getLogContext());
         }
 
@@ -244,10 +235,10 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
                 : throw new SshException("Not established ssh2 session");
 
             if (is_array($this->authMethods)) {
-                $this->logger->notice('Authentication methods negotiated at {host}:{port}:', $this->getLogContext());
+                $this->logger->notice("Authentication methods negotiated:", $this->getLogContext());
                 $this->logger->debug(print_r($this->authMethods, true), $this->getLogContext());
             } else {
-                $this->logger->warning('No authentication methods negotiated at {host}:{port}:', $this->getLogContext());
+                $this->logger->warning("No authentication methods negotiated:", $this->getLogContext());
             }
         }
 
@@ -327,19 +318,20 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
         $this->auth = $auth;
 
         if (!is_resource($this->session)) {
-            $this->loggedException("Failed connecting to host $this");
+            $this->loggedException("Failed connecting");
         }
-        $this->logger->notice("Trying authenticate on host $this");
-
         // after authorization, this method will not work;
         $this->getAuthMethods($auth->getUsername());
+
+        $this->logger->notice("Trying authenticate...", $this->getLogContext());
 
         $this->isAuthorised = $auth->authenticate($this->session);
 
         if (false === $this->isAuthorised) {
-            $this->loggedException("Failed authentication on host $this");
+            $this->loggedException("Failed authentication");
         }
-        $this->logger->notice("Authentication success on host $this");
+
+        $this->logger->notice("" . " authentication success", $this->getLogContext());
 
         return $this;
     }
@@ -362,10 +354,10 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
             return $this->$getter();
         }
 
-        if (method_exists($this->configuration, $getter)) {
-            /** @var mixed $value */
-            $value = $this->configuration->$getter();
-            if ($value instanceof TypeInterface) {
+        if (property_exists($this->configuration, $name)) {
+            /** @psalm-var mixed $value */
+            $value = $this->configuration->get($name);
+            if ($value instanceof TypeEnumInterface) {
                 return $value->getValue();
             }
 
@@ -375,9 +367,12 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
         throw new SshException('Getting unknown property: ' . $this::class . '::' . $name);
     }
 
+    /**
+     * @return string
+     */
     public function __toString(): string
     {
-        return $this->host . ':' . $this->port;
+        return sprintf('host %s:%s', $this->context['{host}'], $this->context['{port}']);
     }
 
     /**
@@ -394,27 +389,45 @@ final class Ssh implements SshInterface, Configurable, SshLoggerAwareInterface, 
         '{widthHeightType}' => "string",
         '{pty}' => "string"
     ])]
+    /**
+     * @psalm-return array<string, string>
+     */
     public function getLogContext(): array
     {
-        return [
-            '{host}' => $this->host,
-            '{port}' => (string) $this->port,
-            '{wait}' => (string) $this->wait,
-            '{timeout}' => (string) $this->timeout,
-            '{termType}' => (string) $this->termType,
-            '{width}' => (string) $this->width,
-            '{height}' => (string) $this->height,
-            '{widthHeightType}' => $this->widthHeightType === SSH2_TERM_UNIT_CHARS ? 'TERM_UNIT_CHARS' : 'TERM_UNIT_PIXELS',
-            '{pty}' => $this->pty ?? 'disabled',
-        ];
+        return $this->context;
     }
 
     /**
-     * @inheritDoc
+     * @psalm-suppress MixedAssignment, MixedArgumentTypeCoercion
+     */
+    private function setContext(string $host, int $port): void
+    {
+        $this->context['{host}'] = $host;
+        $this->context['{port}'] = (string) $port;
+        foreach ($this->configuration->getAsArray() as $key => $value) {
+            $this->context['{' . $key . '}'] = is_array($value)
+                ? implode(',' . PHP_EOL, $value)
+                : (string) $value;
+        }
+
+        $this->logger->info("DEBUG mode is ON", $this->context);
+        $this->logger->info("LOGGING start", $this->context);
+        $this->logger->info(
+            "{property} set to {value} seconds",
+            $this->context + ['{property}' => 'TIMEOUT', '{value}' => (string) $this->timeout]
+        );
+        $this->logger->info(
+            "{property} set to {value} microseconds",
+            $this->context + ['{property}' => 'WAIT', '{value}' => (string) $this->wait]
+        );
+    }
+
+    /**
+     * @throws SshException
      */
     public function loggedException(string $message, array $context = []): never
     {
-        $this->logger->critical($message, $this->getLogContext() + $context);
+        $this->logger->critical($message, $this->context + $context);
         throw new SshException($message);
     }
 

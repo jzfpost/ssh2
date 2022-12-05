@@ -14,10 +14,14 @@
 namespace jzfpost\ssh2;
 
 use jzfpost\ssh2\Auth\AuthInterface;
+use jzfpost\ssh2\Conf\Configurable;
+use jzfpost\ssh2\Logger\SshLoggerAwareInterface;
+use Psr\Log\LoggerInterface;
+use Stringable;
 
-interface SshInterface
+interface SshInterface extends Configurable, SshLoggerAwareInterface, Stringable
 {
-    public function connect(): SshInterface;
+    public function connect(string $host = 'localhost', int $port = 22, LoggerInterface $logger = null): SshInterface;
 
     public function isConnected(): bool;
 

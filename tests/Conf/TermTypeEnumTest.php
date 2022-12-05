@@ -11,7 +11,7 @@ final class TermTypeEnumTest extends TestCase
 {
     public function testTypeInterface()
     {
-        $this->assertInstanceOf(TypeInterface::class, TermTypeEnum::xterm);
+        $this->assertInstanceOf(TypeEnumInterface::class, TermTypeEnum::xterm);
     }
 
     public function testGetValue()

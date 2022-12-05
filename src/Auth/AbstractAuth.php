@@ -15,7 +15,6 @@ namespace jzfpost\ssh2\Auth;
 
 abstract class AbstractAuth implements AuthInterface
 {
-
     public function __construct(protected readonly string $username)
     {
     }
