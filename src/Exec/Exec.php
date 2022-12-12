@@ -14,17 +14,9 @@
 namespace jzfpost\ssh2\Exec;
 
 use jzfpost\ssh2\Exceptions\SshException;
-use function fclose;
-use function fflush;
 use function is_resource;
-use function microtime;
 use function ssh2_exec;
-use function ssh2_fetch_stream;
-use function stream_get_contents;
-use function stream_set_blocking;
-use function stream_set_timeout;
 use function trim;
-use function usleep;
 
 final class Exec extends AbstractExec
 {
@@ -42,12 +34,12 @@ final class Exec extends AbstractExec
 
         $session = $this->ssh->getSession();
         if (is_resource($session)) {
-            $this->executeTimestamp = microtime(true);
+            $this->startTimer();
 
             $exec = ssh2_exec(
                 $session,
-                $cmd,
-                $this->configuration->getPty(),
+                trim($cmd),
+                $this->configuration->getTermType(),
                 $this->configuration->getEnv(),
                 $this->configuration->getWidth(),
                 $this->configuration->getHeight(),
@@ -55,28 +47,20 @@ final class Exec extends AbstractExec
             );
 
             if (is_resource($exec)) {
-                $this->stderr = ssh2_fetch_stream($exec, SSH2_STREAM_STDERR);
-                stream_set_blocking($this->stderr, true);
-                stream_set_blocking($exec, true);
+                $this->fetchStream($exec);
 
-                usleep($this->configuration->getWait());
+                $content = $this->getStreamContent($exec);
+                $timer = $this->stopTimer();
 
-                stream_set_timeout($exec, $this->configuration->getTimeout());
-
-                $content = stream_get_contents($exec);
                 if (false === $content) {
                     $message = "Failed to execute \"$cmd\"";
                     $this->logger->critical($message, $this->ssh->getLogContext());
                     throw new SshException($message);
                 }
 
-                $timestamp = microtime(true) - $this->executeTimestamp;
-
-                @fflush($exec);
-
                 $this->logger->info(
-                    "Command execution time is {timestamp} microseconds",
-                    $this->ssh->getLogContext() + ['{timestamp}' => (string) $timestamp]
+                    "Command execution time is {timer} microseconds",
+                    $this->ssh->getLogContext() + ['{timer}' => (string) $timer]
                 );
 
                 $this->logger->debug($content, $this->ssh->getLogContext());
@@ -89,15 +73,6 @@ final class Exec extends AbstractExec
         $message = "Unable to exec command";
         $this->logger->critical($message, $this->ssh->getLogContext());
         throw new SshException($message);
-    }
-
-    public function close(): void
-    {
-        $stdErr = $this->getStderr();
-        if (is_resource($stdErr)) {
-            @fflush($stdErr);
-            @fclose($stdErr);
-        }
     }
 
     public function __destruct()

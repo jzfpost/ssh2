@@ -31,6 +31,4 @@ abstract class AbstractAuth implements AuthInterface
     {
         return $this->username;
     }
-
-    abstract public function setUsername(string $username): self;
 }

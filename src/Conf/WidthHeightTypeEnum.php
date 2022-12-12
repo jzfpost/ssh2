@@ -13,7 +13,7 @@
 
 namespace jzfpost\ssh2\Conf;
 
-enum WidthHeightTypeEnum implements TypeEnumInterface
+enum WidthHeightTypeEnum implements IntEnumInterface
 {
     /**
      * SSH2_TERM_UNIT_CHARS
@@ -32,10 +32,10 @@ enum WidthHeightTypeEnum implements TypeEnumInterface
         };
     }
 
-    public function getFromValue(int|string $value): WidthHeightTypeEnum
+    public function getFromValue(int $value): self
     {
         foreach (self::cases() as $case) {
-            if ($case->getValue() === $value || $case->name === $value) {
+            if ($case->getValue() === $value) {
                 return $case;
             }
         }

@@ -35,18 +35,4 @@ final class Password extends AbstractAuth
         return ssh2_auth_password($session, $this->username, $this->password);
     }
 
-    #[Pure] public function setUsername(string $username): self
-    {
-        return new self($username, $this->password);
-    }
-
-    public function getPassword(): string
-    {
-        return '';
-    }
-
-    #[Pure] public function setPassword(string $password): self
-    {
-        return new self($this->username, $password);
-    }
 }

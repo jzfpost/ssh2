@@ -16,12 +16,13 @@ namespace jzfpost\ssh2\Conf;
 /**
  * USAGE:
  * ```php
- * $conf = new Configuration('www.site.com')->setTermType(TermTypeEnum::xterm);
- * $ssh = new SSH($conf);
+ * $conf = new Configuration(new FileLogger("/var/log/ssh2/log.txt", true))->setTermType(TermTypeEnum::xterm);
+ * $ssh = $conf->apply();
  * ```
  */
-final class Configuration implements ConfigurationInterface
+class Configuration implements ConfigurationInterface
 {
+
     /**
      * @psalm-var positive-int the response timeout in seconds (s)
      */
@@ -32,7 +33,7 @@ final class Configuration implements ConfigurationInterface
     private int $wait = 3500;
     /**
      * Methods may be an associative array with any of the ssh2 connect parameters
-     * @psalm-param array<array-key, string|array<array-key, string>> $methods
+     * @psalm-param array<string, string|array<string, string>> $methods
      * $methods = [
      *     'kex' => 'diffie-hellman-group1-sha1, diffie-hellman-group14-sha1, diffie-hellman-group-exchange-sha1',
      *     'hostkey' => 'ssh-rsa, ssh-dss',
@@ -82,7 +83,6 @@ final class Configuration implements ConfigurationInterface
      * WidthHeightTypeEnum::pixels.
      */
     private WidthHeightTypeEnum $widthHeightType = WidthHeightTypeEnum::chars;
-    private ?string $pty = null;
 
     public function get(string $property): mixed
     {
@@ -109,7 +109,10 @@ final class Configuration implements ConfigurationInterface
         $properties = get_class_vars(self::class);
 
         foreach ($properties as $property => $value) {
-            $array[$property] = $value instanceof TypeEnumInterface ? $value->getValue() : $value;
+            if ($property === 'logger') {
+                continue;
+            }
+            $array[$property] = $value instanceof TypeEnumInterface || $value instanceof IntEnumInterface ? $value->getValue() : $value;
         }
 
         return $array;
@@ -125,16 +128,19 @@ final class Configuration implements ConfigurationInterface
         $keys = array_keys($properties);
 
         foreach ($keys as $property) {
+            if ($property === 'logger') {
+                continue;
+            }
             $value = $this->$property;
-            $array[$property] = $value instanceof TypeEnumInterface ? $value->getValue() : $value;
+            $array[$property] = $value instanceof TypeEnumInterface || $value instanceof IntEnumInterface ? $value->getValue() : $value;
         }
 
         return $array;
     }
 
     /**
-     * @psalm-param array<string, bool|positive-int|non-empty-string|string|array> $options
-     * @psalm-suppress MixedMethodCall
+     * @inheritDoc
+     * @psalm-suppress MixedMethodCall, MixedAssignment
      */
     public function setFromArray(array $options = []): self
     {
@@ -142,7 +148,7 @@ final class Configuration implements ConfigurationInterface
 
         foreach ($options as $property => $value) {
 
-            $new->$property = $this->$property instanceof TypeEnumInterface
+            $new->$property = $this->$property instanceof TypeEnumInterface || $this->$property instanceof IntEnumInterface
                 ? $this->$property->getFromValue($value)
                 : $value;
         }
@@ -170,7 +176,6 @@ final class Configuration implements ConfigurationInterface
 
     /**
      * @param array<string, string>|null $env
-     * @return $this
      */
     public function setEnv(?array $env = null): self
     {
@@ -218,6 +223,11 @@ final class Configuration implements ConfigurationInterface
         return $this->termType->getValue();
     }
 
+    public function getTermTypeEnum(): TermTypeEnum
+    {
+        return $this->termType;
+    }
+
     public function setTermType(TermTypeEnum $termType): self
     {
         return $this->set('termType', $termType);
@@ -260,18 +270,14 @@ final class Configuration implements ConfigurationInterface
         return $this->widthHeightType->getValue();
     }
 
+    public function getWidthHeightTypeEnum(): WidthHeightTypeEnum
+    {
+        return $this->widthHeightType;
+    }
+
     public function setWidthHeightType(WidthHeightTypeEnum $widthHeightType): self
     {
         return $this->set('widthHeightType', $widthHeightType);
     }
 
-    public function getPty(): ?string
-    {
-        return $this->pty;
-    }
-
-    public function setPty(?string $pty = null): self
-    {
-        return $this->set('pty', $pty);
-    }
 }

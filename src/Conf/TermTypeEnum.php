@@ -31,7 +31,7 @@ enum TermTypeEnum implements TypeEnumInterface
         return $this->name;
     }
 
-    public function getFromValue(int|string $value): TermTypeEnum
+    public function getFromValue(string $value): self
     {
         foreach (self::cases() as $case) {
             if ($case->getValue() === $value) {

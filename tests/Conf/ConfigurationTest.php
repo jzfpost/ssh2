@@ -5,7 +5,9 @@
 
 namespace jzfpost\ssh2\Conf;
 
+use jzfpost\ssh2\Logger\FileLogger;
 use jzfpost\ssh2\TestCase;
+use Psr\Log\NullLogger;
 
 final class ConfigurationTest extends TestCase
 {
@@ -25,7 +27,6 @@ final class ConfigurationTest extends TestCase
         'width' => SSH2_DEFAULT_TERM_WIDTH,
         'height' => SSH2_DEFAULT_TERM_HEIGHT,
         'widthHeightType' => SSH2_TERM_UNIT_CHARS,
-        'pty' => null
     ];
 
     private array $configuration = [
@@ -42,7 +43,6 @@ final class ConfigurationTest extends TestCase
         'width' => 240,
         'height' => 240,
         'widthHeightType' => SSH2_TERM_UNIT_PIXELS,
-        'pty' => 'test'
     ];
 
     protected function setUp(): void
@@ -85,16 +85,28 @@ final class ConfigurationTest extends TestCase
     public function testGetWidthHeightType(): void
     {
         $this->assertEquals($this->defaultConfiguration['widthHeightType'], $this->conf->getWidthHeightType());
+        $this->assertEquals(WidthHeightTypeEnum::chars, $this->conf->getWidthHeightType(true));
     }
 
     public function testGetTermType(): void
     {
         $this->assertEquals($this->defaultConfiguration['termType'], $this->conf->getTermType());
+        $this->assertEquals(TermTypeEnum::vanilla, $this->conf->getTermType(true));
     }
 
     public function testGetAsArray(): void
     {
         $this->assertEquals($this->defaultConfiguration, $this->conf->getAsArray());
+    }
+
+    public function testGetLogger(): void
+    {
+        $this->assertEquals(new NullLogger(), $this->conf->getLogger());
+    }
+
+    public function testGetCallbacks(): void
+    {
+        $this->assertEquals($this->defaultConfiguration['callbacks'], $this->conf->getCallbacks());
     }
 
     public function testSetEnv(): void
@@ -131,12 +143,14 @@ final class ConfigurationTest extends TestCase
     {
         $new = (new Configuration())->setWidthHeightType(WidthHeightTypeEnum::pixels);
         $this->assertEquals(WidthHeightTypeEnum::pixels->getValue(), $new->getWidthHeightType());
+        $this->assertEquals(WidthHeightTypeEnum::pixels, $new->getWidthHeightType(true));
     }
 
     public function testSetTermType(): void
     {
         $new = (new Configuration())->setTermType(TermTypeEnum::xterm);
         $this->assertEquals(TermTypeEnum::xterm->getValue(), $new->getTermType());
+        $this->assertEquals(TermTypeEnum::xterm, $new->getTermType(true));
     }
 
     public function testSetMethods(): void
@@ -159,10 +173,18 @@ final class ConfigurationTest extends TestCase
         $this->assertEquals($methods, $new->getMethods());
     }
 
-    public function testSetPty(): void
+    public function testSetCallbacks(): void
     {
-        $new = (new Configuration())->setPty('true');
-        $this->assertEquals('true', $new->getPty());
+        $callbacks = null;
+        $new = (new Configuration())->setCallbacks($callbacks);
+        $this->assertEquals($callbacks, $new->getCallbacks());
+    }
+
+    public function testSetLogger(): void
+    {
+        $logger = new FileLogger('/var/log/ssh2/test.log');
+        $new = (new Configuration())->setLogger($logger);
+        $this->assertEquals($logger, $new->getLogger());
     }
 
     public function testSetFromArray(): void

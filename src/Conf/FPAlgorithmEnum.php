@@ -2,7 +2,7 @@
 
 namespace jzfpost\ssh2\Conf;
 
-enum FPAlgorithmEnum implements TypeEnumInterface
+enum FPAlgorithmEnum implements IntEnumInterface
 {
     case md5;
     case sha1;
@@ -19,10 +19,10 @@ enum FPAlgorithmEnum implements TypeEnumInterface
         };
     }
 
-    public function getFromValue(int|string $value): FPAlgorithmEnum
+    public function getFromValue(int $value): self
     {
         foreach (self::cases() as $case) {
-            if ($case->getValue() === $value || $case->name === $value) {
+            if ($case->getValue() === $value) {
                 return $case;
             }
         }

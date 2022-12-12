@@ -24,6 +24,7 @@ use jzfpost\ssh2\Exec\ExecInterface;
 use jzfpost\ssh2\Exec\Shell;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Stringable;
 use function function_exists;
 use function is_resource;
 use function register_shutdown_function;
@@ -38,11 +39,11 @@ use function ucfirst;
  *
  * USAGE:
  * ```php
- * $conf = (new Configuration('192.168.1.1'))
+ * $conf = (new Configuration())
  *  ->setTermType('dumb');
  *
  * $ssh2 = new Ssh($conf);
- * $ssh2->connect()
+ * $ssh2->connect('192.168.1.1', 22, new PrintableLogger())
  *  ->authPassword($username, $password);
  *
  * // on router use shell
@@ -59,23 +60,11 @@ use function ucfirst;
  * $ssh2->disconnect();
  * ```
  *
- * @property-read non-empty-string $host
- * @property-read positive-int $port
- * @property-read positive-int $timeout
- * @property-read positive-int $wait
- * @property-read string|false $loggingFileName
- * @property-read string $dateFormat
- * @property-read array $methods
- * @property-read array $callbacks
- * @property-read string|null $termType
- * @property-read array|null $env
- * @property-read int $width
- * @property-read int $height
- * @property-read int $widthHeightType
- * @property-read string|null $pty
  */
 final class Ssh implements SshInterface
 {
+    private string $host = 'localhost';
+    private int $port = 22;
     private bool $isAuthorised = false;
     private ?AuthInterface $auth = null;
     private ?ExecInterface $exec = null;
@@ -89,11 +78,14 @@ final class Ssh implements SshInterface
     /**
      * @var array<string, string>
      */
-    private array $context = [];
+    private array $context = [
+        '{host}' => 'localhost',
+        '{port}' => '22'
+    ];
 
     public function __construct(
-        private                 readonly Configuration $configuration = new Configuration(),
-        private LoggerInterface $logger = new NullLogger()
+        public Configuration   $configuration = new Configuration(),
+        public LoggerInterface $logger = new NullLogger()
     )
     {
         if (!function_exists('ssh2_connect')) {
@@ -103,15 +95,28 @@ final class Ssh implements SshInterface
         register_shutdown_function([$this, 'disconnect']);
     }
 
-    public function connect(string $host = 'localhost', int $port = 22, LoggerInterface $logger = null): SshInterface
+    /**
+     * @psalm-suppress PossiblyNullArgument
+     */
+    public function connect(string $host = 'localhost', int $port = 22, ?LoggerInterface $logger = null): SshInterface
     {
-        $new = new self($this->configuration, $logger ?? $this->logger);
+        $new = clone $this;
 
-        $new->setContext($host, $port);
+        $new->host = $host;
+        $new->port = $port;
+
+        $new->setLogger($logger ?? $this->logger);
+
+        $new->setContext();
 
         $new->logger->notice("Trying connection...", $new->getLogContext());
 
-        $new->session = ssh2_connect($host, $port, $new->methods, $new->callbacks);
+        $new->session = ssh2_connect(
+            $host,
+            $port,
+            $new->configuration->getMethods(),
+            $new->configuration->getCallbacks()
+        );
 
         if (!is_resource($new->session)) {
             $new->loggedException("Connection refused");
@@ -235,10 +240,10 @@ final class Ssh implements SshInterface
                 : throw new SshException("Not established ssh2 session");
 
             if (is_array($this->authMethods)) {
-                $this->logger->notice("Authentication methods negotiated:", $this->getLogContext());
+                $this->logger->notice("Authentication methods negotiated for username \"$username\":", $this->getLogContext());
                 $this->logger->debug(print_r($this->authMethods, true), $this->getLogContext());
             } else {
-                $this->logger->warning("No authentication methods negotiated:", $this->getLogContext());
+                $this->logger->warning("No authentication methods negotiated for username \"$username\":", $this->getLogContext());
             }
         }
 
@@ -251,7 +256,7 @@ final class Ssh implements SshInterface
      */
     public function authNone(string $username): self
     {
-        return $this->authentication(new Auth\None($username));
+        return $this->setAuth(new Auth\None($username));
     }
 
     /**
@@ -259,7 +264,7 @@ final class Ssh implements SshInterface
      */
     public function authAgent(string $username): self
     {
-        return $this->authentication(new Auth\Agent($username));
+        return $this->setAuth(new Auth\Agent($username));
     }
 
     /**
@@ -269,7 +274,7 @@ final class Ssh implements SshInterface
      */
     public function authPassword(string $username, string $password): self
     {
-        return $this->authentication(new Auth\Password($username, $password));
+        return $this->setAuth(new Auth\Password($username, $password));
     }
 
     /**
@@ -279,7 +284,7 @@ final class Ssh implements SshInterface
      */
     public function authPubkey(string $username, string $pubkeyFile, string $privkeyFile, string $passphrase): self
     {
-        return $this->authentication(new Auth\Pubkey($username, $pubkeyFile, $privkeyFile, $passphrase));
+        return $this->setAuth(new Auth\Pubkey($username, $pubkeyFile, $privkeyFile, $passphrase));
     }
 
     /**
@@ -296,7 +301,7 @@ final class Ssh implements SshInterface
         string $localUsername = ''
     ): self
     {
-        return $this->authentication(
+        return $this->setAuth(
             new Auth\Hostbased(
                 $username,
                 $hostname,
@@ -308,30 +313,26 @@ final class Ssh implements SshInterface
         );
     }
 
-    /**
-     * Authenticate over SSH
-     *
-     * @throws SshException
-     */
-    public function authentication(AuthInterface $auth): self
+    public function authenticate(): self
     {
-        $this->auth = $auth;
+        if ($this->auth === null) {
+            $this->loggedException("Do not implements AuthInterface");
+        }
 
         if (!is_resource($this->session)) {
             $this->loggedException("Failed connecting");
         }
-        // after authorization, this method will not work;
-        $this->getAuthMethods($auth->getUsername());
+
+        $this->getAuthMethods($this->auth->getusername());
 
         $this->logger->notice("Trying authenticate...", $this->getLogContext());
 
-        $this->isAuthorised = $auth->authenticate($this->session);
-
+        $this->isAuthorised = $this->auth->authenticate($this->session);
         if (false === $this->isAuthorised) {
             $this->loggedException("Failed authentication");
         }
 
-        $this->logger->notice("" . " authentication success", $this->getLogContext());
+        $this->logger->notice($this->auth::class . " authentication success", $this->getLogContext());
 
         return $this;
     }
@@ -340,6 +341,14 @@ final class Ssh implements SshInterface
     {
         return $this->auth;
     }
+
+    public function setAuth(?AuthInterface $auth = null): self
+    {
+        $this->auth = $auth;
+
+        return $this;
+    }
+
 
     public function isAuthorised(): bool
     {
@@ -364,7 +373,7 @@ final class Ssh implements SshInterface
             return $value;
         }
 
-        throw new SshException('Getting unknown property: ' . $this::class . '::' . $name);
+        throw new SshException(sprintf('Getting unknown property: %s::%s', self::class, $name));
     }
 
     /**
@@ -400,26 +409,63 @@ final class Ssh implements SshInterface
     /**
      * @psalm-suppress MixedAssignment, MixedArgumentTypeCoercion
      */
-    private function setContext(string $host, int $port): void
+    private function setContext(): void
     {
-        $this->context['{host}'] = $host;
-        $this->context['{port}'] = (string) $port;
+        $this->context['{host}'] = $this->host;
+        $this->context['{port}'] = (string) $this->port;
         foreach ($this->configuration->getAsArray() as $key => $value) {
-            $this->context['{' . $key . '}'] = is_array($value)
-                ? implode(',' . PHP_EOL, $value)
-                : (string) $value;
+            if (is_string($value)) {
+                $this->context['{' . $key . '}'] = $value;
+            } elseif (is_array($value)) {
+                $this->context['{' . $key . '}'] = implode(',' . PHP_EOL, $value);
+            } elseif ($value instanceof Stringable || is_numeric($value)) {
+                $this->context['{' . $key . '}'] = (string) $value;
+            }
         }
 
         $this->logger->info("DEBUG mode is ON", $this->context);
         $this->logger->info("LOGGING start", $this->context);
         $this->logger->info(
             "{property} set to {value} seconds",
-            $this->context + ['{property}' => 'TIMEOUT', '{value}' => (string) $this->timeout]
+            $this->context + ['{property}' => 'TIMEOUT', '{value}' => (string) $this->configuration->getTimeout()]
         );
         $this->logger->info(
             "{property} set to {value} microseconds",
-            $this->context + ['{property}' => 'WAIT', '{value}' => (string) $this->wait]
+            $this->context + ['{property}' => 'WAIT', '{value}' => (string) $this->configuration->getWait()]
         );
+        $this->logger->info(
+            "{property} set to {value}",
+            $this->context + ['{property}' => 'TERMTYPE', '{value}' => $this->configuration->getTermType()]
+        );
+        $this->logger->info(
+            "{property} set to {value}",
+            $this->context + ['{property}' => 'WIDTH', '{value}' => (string) $this->configuration->getWidth()]
+        );
+        $this->logger->info(
+            "{property} set to {value}",
+            $this->context + ['{property}' => 'HEIGHT', '{value}' => (string) $this->configuration->getHeight()]
+        );
+        $this->logger->info(
+            "{property} set to {value}",
+            $this->context + ['{property}' => 'WIDTHHEIGHTTYPE', '{value}' => $this->configuration->getWidthHeightTypeEnum()->name],
+        );
+        if ($this->configuration->getEnv() === null) {
+            $this->logger->info(
+                "{property} set to {value}",
+                $this->context + ['{property}' => 'ENV', '{value}' => 'NULL']
+            );
+        } elseif (is_array($this->configuration->getEnv())) {
+            /**
+             * @psalm-var string $key
+             * @psalm-var string $value
+             */
+            foreach ($this->configuration->getEnv() as $key => $value) {
+                $this->logger->info(
+                    "{property} set to {value}",
+                    $this->context + ['{property}' => 'ENV', '{value}' => $key . ' => ' . $value]
+                );
+            }
+        }
     }
 
     /**

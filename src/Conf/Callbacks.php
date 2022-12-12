@@ -17,6 +17,7 @@ use jzfpost\ssh2\Exceptions\SshException;
 
 final class Callbacks
 {
+
     /**
      * Function to call when an SSH2_MSG_IGNORE packet is received
      * @throws SshException
@@ -57,4 +58,5 @@ final class Callbacks
 
         throw new SshException($msg);
     }
+
 }

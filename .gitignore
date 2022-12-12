@@ -13,3 +13,4 @@ runRector.sh
 composer_update.sh
 phpmetricks.sh
 /.php_metrics/
+.phpunit.result.cache

@@ -21,7 +21,7 @@ use Stringable;
 
 interface SshInterface extends Configurable, SshLoggerAwareInterface, Stringable
 {
-    public function connect(string $host = 'localhost', int $port = 22, LoggerInterface $logger = null): SshInterface;
+    public function connect(string $host = 'localhost', int $port = 22, LoggerInterface $logger = null): self;
 
     public function isConnected(): bool;
 
@@ -38,9 +38,11 @@ interface SshInterface extends Configurable, SshLoggerAwareInterface, Stringable
 
     public function getAuthMethods(string $username): null|bool|array;
 
-    public function authentication(AuthInterface $auth): SshInterface;
+    public function authenticate(): self;
 
     public function getAuth(): ?AuthInterface;
+
+    public function setAuth(AuthInterface $auth): self;
 
     public function isAuthorised(): bool;
 }

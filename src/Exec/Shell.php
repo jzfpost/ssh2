@@ -19,13 +19,12 @@ use function fflush;
 use function fgetc;
 use function fwrite;
 use function is_resource;
-use function microtime;
 use function preg_match;
 use function preg_replace;
-use function ssh2_fetch_stream;
 use function ssh2_shell;
-use function stream_get_contents;
-use function stream_set_blocking;
+use function str_contains;
+use function stream_get_meta_data;
+use function stream_set_timeout;
 use function strpos;
 use function substr;
 use function trim;
@@ -68,9 +67,7 @@ final class Shell extends AbstractExec implements ShellInterface
 
                 $this->logger->notice("Shell opened success", $this->ssh->getLogContext());
 
-                $this->stderr = ssh2_fetch_stream($this->shell, SSH2_STREAM_STDERR);
-                stream_set_blocking($this->stderr, true);
-                stream_set_blocking($this->shell, true);
+                $this->fetchStream($this->shell);
 
                 $this->readTo($prompt);
 
@@ -97,13 +94,9 @@ final class Shell extends AbstractExec implements ShellInterface
             }
         }
 
-        if (is_resource($this->stderr)) {
-            @fflush($this->stderr);
-            @fclose($this->stderr);
-        }
+        parent::close();
 
         $this->shell = false;
-        $this->stderr = false;
     }
 
     /**
@@ -118,18 +111,22 @@ final class Shell extends AbstractExec implements ShellInterface
 
             $this->write($cmd);
 
-            usleep($this->configuration->getWait());
+            $content = $this->getStreamContent($this->shell);
+            $timer = $this->stopTimer();
 
-            stream_set_timeout($this->shell, $this->configuration->getTimeout());
-
-            $content = stream_get_contents($this->shell);
             if (false === $content) {
                 $message = "Failed to execute \"$cmd\"";
                 $this->logger->critical($message, $context);
                 throw new SshException($message);
             }
 
-            @fflush($this->shell);
+            $this->logger->info(
+                "Command execution time is {timer} microseconds",
+                $this->ssh->getLogContext() + ['{timer}' => (string) $timer]
+            );
+
+            $this->logger->debug($content, $this->ssh->getLogContext());
+            $this->logger->info("Data transmission is over", $this->ssh->getLogContext());
 
             return $this->trimFirstLine(trim($content));
         }
@@ -167,7 +164,8 @@ final class Shell extends AbstractExec implements ShellInterface
         if (is_resource($this->shell)) {
             $this->logger->notice("Write command to $this->ssh => \"{cmd}\"", $this->ssh->getLogContext() + ['{cmd}' => $cmd]);
 
-            $this->executeTimestamp = microtime(true);
+            $this->startTimer();
+
 
             fwrite($this->shell, trim($cmd) . PHP_EOL);
         } else {
@@ -201,7 +199,7 @@ final class Shell extends AbstractExec implements ShellInterface
 
                 if (false === $c) {
                     $this->logger->info(
-                        "Timeout released before the prompt was read on shell",
+                        "Timeout released before the prompt was read shell stream",
                         $this->ssh->getLogContext()
                     );
 
@@ -216,12 +214,13 @@ final class Shell extends AbstractExec implements ShellInterface
 
             } while (stream_get_meta_data($this->shell)["eof"] === false);
 
+            $timer = $this->stopTimer();
+
             @fflush($this->shell);
 
-            $timestamp = microtime(true) - $this->executeTimestamp;
             $this->logger->info(
-                "Command execution time is {timestamp} microseconds",
-                $this->ssh->getLogContext() + ['{timestamp}' => (string) $timestamp]
+                "Command execution time is {timer} microseconds",
+                $this->ssh->getLogContext() + ['{timer}' => (string) $timer]
             );
 
             $this->logger->debug($buffer, $this->ssh->getLogContext());
@@ -257,10 +256,6 @@ final class Shell extends AbstractExec implements ShellInterface
         return preg_replace("/$prompt\s*$/i", '', $text);
     }
 
-    /**
-     * Destructor.
-     * @return void
-     */
     public function __destruct()
     {
         $this->close();

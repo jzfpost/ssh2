@@ -16,4 +16,9 @@ interface ConfigurationInterface
     public function getAsArray(): array;
 
     public function getDefaultProperties(): array;
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    public function setFromArray(array $options = []): self;
 }

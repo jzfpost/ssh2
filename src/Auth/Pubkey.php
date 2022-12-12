@@ -43,8 +43,4 @@ final class Pubkey extends AbstractAuth
         );
     }
 
-    #[Pure] public function setUsername(string $username): self
-    {
-        return new self($username, $this->pubkeyFile, $this->privkeyFile, $this->passphrase);
-    }
 }

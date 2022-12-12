@@ -15,69 +15,48 @@ namespace jzfpost\ssh2\Exec;
 
 use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Exceptions\SshException;
-use jzfpost\ssh2\SshInterface;
+use jzfpost\ssh2\Ssh;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use function assert;
+use function fclose;
+use function fflush;
 use function is_resource;
 use function microtime;
+use function ssh2_fetch_stream;
+use function stream_get_contents;
+use function stream_set_blocking;
+use function stream_set_timeout;
+use function usleep;
 
 abstract class AbstractExec implements ExecInterface
 {
-
-    protected float $executeTimestamp;
+    private float $executeTimestamp;
     /**
      * @var resource|closed-resource|false errors
      */
     protected mixed $stderr = false;
 
     public function __construct(
-        protected SshInterface $ssh,
-        protected              readonly Configuration $configuration = new Configuration(),
-        public LoggerInterface $logger = new NullLogger)
+        protected Ssh             $ssh,
+        protected Configuration   $configuration = new Configuration(),
+        protected LoggerInterface $logger = new NullLogger()
+    )
     {
-        $conf = $this->configuration->getAsArray();
         $this->executeTimestamp = microtime(true);
-
-        $this->logger->info(
-            "{property} set to {value}",
-            $ssh->getLogContext() + ['{property}' => 'TERMTYPE', '{value}' => $configuration->getTermType()]
-        );
-        $this->logger->info(
-            "{property} set to {value}",
-            $ssh->getLogContext() + ['{property}' => 'WIDTH', '{value}' => (string) $configuration->getWidth()]
-        );
-        $this->logger->info(
-            "{property} set to {value}",
-            $ssh->getLogContext() + ['{property}' => 'HEIGHT', '{value}' => (string) $configuration->getHeight()]
-        );
-
-        $this->logger->info(
-            "{property} set to {value}",
-            $ssh->getLogContext() + ['{property}' => 'WIDTHHEIGHTTYPE', '{value}' => $configuration->getWidthHeightType()]
-        );
-
-        if ($conf['env'] === null) {
-            $this->logger->info(
-                "{property} set to {value}",
-                $ssh->getLogContext() + ['{property}' => 'ENV', '{value}' => 'NULL']
-            );
-        } else {
-            /**
-             * @psalm-var string $key
-             * @psalm-var string $value
-             */
-            foreach ($conf['env'] as $key => $value) {
-                $this->logger->info(
-                    "{property} set to {value}",
-                    $ssh->getLogContext() + ['{property}' => 'ENV', '{value}' => $key . ' => ' . $value]
-                );
-            }
-        }
     }
 
     abstract public function exec(string $cmd): string;
 
-    abstract public function close(): void;
+    public function close(): void
+    {
+        $stdErr = $this->getStderr();
+        if (is_resource($stdErr)) {
+            @fflush($stdErr);
+            @fclose($stdErr);
+        }
+        $this->stderr = false;
+    }
 
     /**
      * @psalm-return resource|false
@@ -99,6 +78,40 @@ abstract class AbstractExec implements ExecInterface
             $this->logger->critical($message, $this->ssh->getLogContext());
             throw new SshException($message);
         }
+    }
+
+    /**
+     * @psalm-param resource $streem
+     */
+    protected function fetchStream(mixed $stream): void
+    {
+        assert(is_resource($stream));
+
+        $this->stderr = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
+        stream_set_blocking($this->stderr, true);
+        stream_set_blocking($stream, true);
+    }
+
+    protected function getStreamContent(mixed $stream): false|string
+    {
+        assert(is_resource($stream));
+
+        usleep($this->configuration->getWait());
+        stream_set_timeout($stream, $this->configuration->getTimeout());
+        $content = stream_get_contents($stream);
+        @fflush($stream);
+
+        return $content;
+    }
+
+    protected function startTimer(): void
+    {
+        $this->executeTimestamp = microtime(true);
+    }
+
+    protected function stopTimer(): float
+    {
+        return microtime(true) - $this->executeTimestamp;
     }
 
 }

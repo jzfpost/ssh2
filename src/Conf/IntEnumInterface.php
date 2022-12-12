@@ -11,19 +11,11 @@
  * @requires    libssh2 version => ^1.8.0
  */
 
-namespace jzfpost\ssh2\Auth;
+namespace jzfpost\ssh2\Conf;
 
-use function ssh2_auth_none;
-
-final class None extends AbstractAuth
+interface IntEnumInterface
 {
+    public function getValue(): int;
 
-    /**
-     * @inheritDoc
-     */
-    public function authenticate(mixed $session): bool
-    {
-        return ssh2_auth_none($session, $this->username) === true;
-    }
-
+    public function getFromValue(int $value): self;
 }

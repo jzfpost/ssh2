@@ -31,24 +31,4 @@ final class NoneTest extends TestCase
         $this->assertIsString($username);
         $this->assertEquals($username, $this->username);
     }
-
-    /**
-     * @throws ReflectionException
-     */
-    public function testSetUsername(): void
-    {
-        $new = $this->auth->setUsername('user');
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\None', $new);
-        $this->assertInstanceOf('jzfpost\ssh2\Auth\AuthInterface', $new);
-
-        $this->assertIsString($new->getUsername());
-        $this->assertNotEquals($new->getUsername(), $this->username);
-        $this->assertEquals('user', $new->getUsername());
-
-
-        $username = self::getUnaccessiblePropertyValue('username', $new);
-        $this->assertIsString($username);
-        $this->assertNotEquals($username, $this->username);
-        $this->assertEquals('user', $username);
-    }
 }

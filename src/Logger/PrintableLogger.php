@@ -17,11 +17,11 @@ use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Stringable;
 
-final class FileLogger extends AbstractLogger implements LoggerInterface
+final class PrintableLogger extends AbstractLogger implements LoggerInterface
 {
+
     public function __construct(
-        public readonly string $filePath,
-        public string          $dateFormat = 'Y M d H:i:s'
+        public string $dateFormat = 'Y M d H:i:s'
     )
     {
     }
@@ -29,7 +29,7 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
     /**
      * @inheritDoc
      */
-    public function log($level, string|Stringable $message, array $context = []): void
+    public function log($level, Stringable|string $message, array $context = []): void
     {
         /** @psalm-var array<string, float|int|string> $context */
 
@@ -57,12 +57,6 @@ final class FileLogger extends AbstractLogger implements LoggerInterface
             $text = sprintf('[%s] {host}:{port} %s: %s', $timestamp, $level, $text) . PHP_EOL;
         }
 
-        $text = str_replace(array_keys($context), $context, $text);
-
-        if (!file_exists($this->filePath)) {
-            @touch($this->filePath);
-        }
-
-        @file_put_contents($this->filePath, $text, FILE_APPEND);
+        print str_replace(array_keys($context), $context, $text);
     }
 }

@@ -47,16 +47,4 @@ final class Hostbased extends AbstractAuth
         );
     }
 
-    #[Pure] public function setUsername(string $username): self
-    {
-        return new self(
-            $username,
-            $this->hostname,
-            $this->pubkeyFile,
-            $this->privkeyFile,
-            $this->passphrase,
-            $this->localUsername
-        );
-    }
-
 }
