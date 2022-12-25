@@ -7,9 +7,9 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Conf;
+namespace jzfpost\ssh2\Methods;
 
-interface Configurable
+interface MethodsEnumInterface
 {
-    public function getConfiguration(): Configuration;
+
 }

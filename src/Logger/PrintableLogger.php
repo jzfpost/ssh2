@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,6 +15,7 @@
 
 namespace jzfpost\ssh2\Logger;
 
+use DateTimeImmutable;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Stringable;
@@ -37,13 +40,9 @@ final class PrintableLogger extends AbstractLogger implements LoggerInterface
             $level = (string) $level;
         }
 
-        $timestamp = date($this->dateFormat);
+        $timestamp = $this->now()->format($this->dateFormat);
 
-        $text = (string) $message;
-
-        if (strlen($text) > 1) {
-            $text = ucfirst($text);
-        }
+        $text = print_r($message, true);
 
         if ($level === 'debug') {
             $text = sprintf('[%s] {host}:{port} %s:', $timestamp, $level)
@@ -54,9 +53,17 @@ final class PrintableLogger extends AbstractLogger implements LoggerInterface
                 . '================ ================ ================' . PHP_EOL
                 . PHP_EOL;
         } else {
+            if (strlen($text) > 1) {
+                $text = ucfirst($text);
+            }
             $text = sprintf('[%s] {host}:{port} %s: %s', $timestamp, $level, $text) . PHP_EOL;
         }
 
         print str_replace(array_keys($context), $context, $text);
+    }
+
+    public function now(): DateTimeImmutable
+    {
+        return new DateTimeImmutable('now');
     }
 }

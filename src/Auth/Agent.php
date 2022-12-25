@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,6 +15,7 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use jzfpost\ssh2\Session\SessionInterface;
 use function ssh2_auth_agent;
 
 final class Agent extends AbstractAuth
@@ -20,9 +23,8 @@ final class Agent extends AbstractAuth
     /**
      * @inheritDoc
      */
-    public function authenticate(mixed $session): bool
+    public function authenticate(SessionInterface $session): bool
     {
-        return ssh2_auth_agent($session, $this->username);
+        return $this->isAuthorised = @ssh2_auth_agent($session->getSession(), $this->username);
     }
-
 }

@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,16 +15,13 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use jzfpost\ssh2\Session\SessionInterface;
+
 interface AuthInterface
 {
-    /**
-     * @param resource $session
-     * @return bool
-     */
-    public function authenticate(mixed $session): bool;
+    public function authenticate(SessionInterface $session): bool;
 
-    /**
-     * @return string
-     */
     public function getUsername(): string;
+
+    public function isAuthorised(): bool;
 }

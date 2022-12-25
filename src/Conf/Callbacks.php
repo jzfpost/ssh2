@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,11 +15,10 @@
 
 namespace jzfpost\ssh2\Conf;
 
-use jzfpost\ssh2\Exceptions\SshException;
+use jzfpost\ssh2\SshException;
 
 final class Callbacks
 {
-
     /**
      * Function to call when an SSH2_MSG_IGNORE packet is received
      * @throws SshException
@@ -58,5 +59,4 @@ final class Callbacks
 
         throw new SshException($msg);
     }
-
 }

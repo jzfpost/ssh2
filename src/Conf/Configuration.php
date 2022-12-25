@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,16 +15,17 @@
 
 namespace jzfpost\ssh2\Conf;
 
+use jzfpost\ssh2\Methods\Methods;
+
 /**
  * USAGE:
  * ```php
  * $conf = new Configuration(new FileLogger("/var/log/ssh2/log.txt", true))->setTermType(TermTypeEnum::xterm);
- * $ssh = $conf->apply();
+ * $ssh = new Ssh($conf, $logger);
  * ```
  */
 class Configuration implements ConfigurationInterface
 {
-
     /**
      * @psalm-var positive-int the response timeout in seconds (s)
      */
@@ -31,25 +34,7 @@ class Configuration implements ConfigurationInterface
      * @psalm-var positive-int Delay execution in microseconds (ms)
      */
     private int $wait = 3500;
-    /**
-     * Methods may be an associative array with any of the ssh2 connect parameters
-     * @psalm-param array<string, string|array<string, string>> $methods
-     * $methods = [
-     *     'kex' => 'diffie-hellman-group1-sha1, diffie-hellman-group14-sha1, diffie-hellman-group-exchange-sha1',
-     *     'hostkey' => 'ssh-rsa, ssh-dss',
-     *     'client_to_server' => [
-     *         'crypt' => 'rijndael-cbc@lysator.liu.se, aes256-cbc, aes192-cbc, aes128-cbc, 3des-cbc, blowfish-cbc, cast128-cbc, arcfour',
-     *         'comp' => 'zlib|none',
-     *         'mac' => 'hmac-sha1, hmac-sha1-96, hmac-ripemd160, hmac-ripemd160@openssh.com'
-     *      ],
-     *     'server_to_client' => [
-     *         'crypt' => 'rijndael-cbc@lysator.liu.se, aes256-cbc, aes192-cbc, aes128-cbc, 3des-cbc, blowfish-cbc, cast128-cbc, arcfour',
-     *         'comp' => 'zlib|none',
-     *         'mac' => 'hmac-sha1, hmac-sha1-96, hmac-ripemd160, hmac-ripemd160@openssh.com'
-     *     ]
-     * ]
-     */
-    private ?array $methods = null;
+    private ?Methods $methods = null;
     /**
      * Maybe an associative array with any of the ssh2 connect parameters
      * @psalm-param array<array-key, callable> $callbacks
@@ -76,13 +61,18 @@ class Configuration implements ConfigurationInterface
      * @psalm-var positive-int
      */
     private int $height = SSH2_DEFAULT_TERM_HEIGHT;
-    /**
-     * width_height_type should be one of
-     * WidthHeightTypeEnum::chars
-     * or
-     * WidthHeightTypeEnum::pixels.
-     */
     private WidthHeightTypeEnum $widthHeightType = WidthHeightTypeEnum::chars;
+    private FPAlgorithmEnum $fingerPrintAlgorithm = FPAlgorithmEnum::md5;
+
+    /**
+     * @psalm-suppress MixedAssignment
+     */
+    public function __construct(array $options = [])
+    {
+        foreach ($options as $property => $value) {
+            $this->$property = $value;
+        }
+    }
 
     public function get(string $property): mixed
     {
@@ -91,6 +81,8 @@ class Configuration implements ConfigurationInterface
 
     /**
      * @psalm-suppress MixedAssignment
+     *
+     * @psalm-param mixed $value
      */
     public function set(string $property, mixed $value): self
     {
@@ -105,17 +97,7 @@ class Configuration implements ConfigurationInterface
      */
     public function getDefaultProperties(): array
     {
-        $array = [];
-        $properties = get_class_vars(self::class);
-
-        foreach ($properties as $property => $value) {
-            if ($property === 'logger') {
-                continue;
-            }
-            $array[$property] = $value instanceof TypeEnumInterface || $value instanceof IntEnumInterface ? $value->getValue() : $value;
-        }
-
-        return $array;
+        return get_class_vars(self::class);
     }
 
     /**
@@ -124,15 +106,11 @@ class Configuration implements ConfigurationInterface
     public function getAsArray(): array
     {
         $array = [];
-        $properties = get_class_vars(self::class);
+        $properties = $this->getDefaultProperties();
         $keys = array_keys($properties);
 
         foreach ($keys as $property) {
-            if ($property === 'logger') {
-                continue;
-            }
-            $value = $this->$property;
-            $array[$property] = $value instanceof TypeEnumInterface || $value instanceof IntEnumInterface ? $value->getValue() : $value;
+            $array[$property] = $this->$property;
         }
 
         return $array;
@@ -147,10 +125,7 @@ class Configuration implements ConfigurationInterface
         $new = clone $this;
 
         foreach ($options as $property => $value) {
-
-            $new->$property = $this->$property instanceof TypeEnumInterface || $this->$property instanceof IntEnumInterface
-                ? $this->$property->getFromValue($value)
-                : $value;
+            $new->$property = $value;
         }
 
         return $new;
@@ -200,10 +175,15 @@ class Configuration implements ConfigurationInterface
 
     public function getMethods(): ?array
     {
+        return $this->methods?->asArray();
+    }
+
+    public function getMethodsObject(): ?Methods
+    {
         return $this->methods;
     }
 
-    public function setMethods(?array $methods): self
+    public function setMethods(?Methods $methods = null): self
     {
         return $this->set('methods', $methods);
     }
@@ -278,6 +258,21 @@ class Configuration implements ConfigurationInterface
     public function setWidthHeightType(WidthHeightTypeEnum $widthHeightType): self
     {
         return $this->set('widthHeightType', $widthHeightType);
+    }
+
+    public function getFingerPrintAlgorithm(): int
+    {
+        return $this->fingerPrintAlgorithm->getValue();
+    }
+
+    public function getFingerPrintAlgorithmEnum(): FPAlgorithmEnum
+    {
+        return $this->fingerPrintAlgorithm;
+    }
+
+    public function setFingerPrintAlgorithm(FPAlgorithmEnum $fingerPrintAlgorithm): self
+    {
+        return $this->set('fingerPrintAlgorithm', $fingerPrintAlgorithm);
     }
 
 }

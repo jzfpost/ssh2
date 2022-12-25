@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,14 +15,16 @@
 
 namespace jzfpost\ssh2;
 
-use jzfpost\ssh2\Auth\AuthInterface;
-use jzfpost\ssh2\Conf\Configurable;
-use jzfpost\ssh2\Logger\SshLoggerAwareInterface;
 use Psr\Log\LoggerInterface;
-use Stringable;
 
-interface SshInterface extends Configurable, SshLoggerAwareInterface, Stringable
+interface SshInterface
 {
+    /**
+     * @param string $host
+     * @param positive-int $port
+     * @param LoggerInterface|null $logger
+     * @return $this
+     */
     public function connect(string $host = 'localhost', int $port = 22, LoggerInterface $logger = null): self;
 
     public function isConnected(): bool;
@@ -35,14 +39,4 @@ interface SshInterface extends Configurable, SshLoggerAwareInterface, Stringable
     public function getMethodsNegotiated(): array;
 
     public function getFingerPrint(): string;
-
-    public function getAuthMethods(string $username): null|bool|array;
-
-    public function authenticate(): self;
-
-    public function getAuth(): ?AuthInterface;
-
-    public function setAuth(AuthInterface $auth): self;
-
-    public function isAuthorised(): bool;
 }

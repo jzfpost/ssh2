@@ -5,49 +5,51 @@
 
 namespace jzfpost\ssh2\Conf;
 
-use jzfpost\ssh2\Logger\FileLogger;
+use jzfpost\ssh2\Methods\Methods;
 use jzfpost\ssh2\TestCase;
-use Psr\Log\NullLogger;
 
 final class ConfigurationTest extends TestCase
 {
     private Configuration $conf;
-    private array $defaultConfiguration = [
-        'timeout' => 10,
-        'wait' => 3500,
-        'methods' => null,
-        'callbacks' => [
-            'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
-            'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
-            'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
-            'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
-        ],
-        'termType' => SSH2_DEFAULT_TERMINAL,
-        'env' => null,
-        'width' => SSH2_DEFAULT_TERM_WIDTH,
-        'height' => SSH2_DEFAULT_TERM_HEIGHT,
-        'widthHeightType' => SSH2_TERM_UNIT_CHARS,
-    ];
+    private array $defaultConfiguration;
 
-    private array $configuration = [
-        'timeout' => 5,
-        'wait' => 7000,
-        'methods' => [
-            'test' => 'test',
-        ],
-        'callbacks' => null,
-        'termType' => 'xterm',
-        'env' => [
-            'test' => 'test',
-        ],
-        'width' => 240,
-        'height' => 240,
-        'widthHeightType' => SSH2_TERM_UNIT_PIXELS,
-    ];
+    private array $configuration;
 
     protected function setUp(): void
     {
         $this->conf = new Configuration();
+        $this->defaultConfiguration = [
+            'timeout' => 10,
+            'wait' => 3500,
+            'methods' => null,
+            'callbacks' => [
+                'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
+                'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
+                'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
+                'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
+            ],
+            'termType' => TermTypeEnum::vanilla,
+            'env' => null,
+            'width' => SSH2_DEFAULT_TERM_WIDTH,
+            'height' => SSH2_DEFAULT_TERM_HEIGHT,
+            'widthHeightType' => WidthHeightTypeEnum::chars,
+            'fingerPrintAlgorithm' => FPAlgorithmEnum::md5
+        ];
+
+        $this->configuration = [
+            'timeout' => 5,
+            'wait' => 7000,
+            'methods' => new Methods(),
+            'callbacks' => null,
+            'termType' => TermTypeEnum::xterm,
+            'env' => [
+                'test' => 'test',
+            ],
+            'width' => 240,
+            'height' => 240,
+            'widthHeightType' => WidthHeightTypeEnum::pixels,
+            'fingerPrintAlgorithm' => FPAlgorithmEnum::sha1
+        ];
     }
 
     public function testClass(): void
@@ -84,24 +86,21 @@ final class ConfigurationTest extends TestCase
 
     public function testGetWidthHeightType(): void
     {
-        $this->assertEquals($this->defaultConfiguration['widthHeightType'], $this->conf->getWidthHeightType());
-        $this->assertEquals(WidthHeightTypeEnum::chars, $this->conf->getWidthHeightType(true));
+        $this->assertEquals($this->defaultConfiguration['widthHeightType'], $this->conf->getWidthHeightTypeEnum());
+        $this->assertEquals(WidthHeightTypeEnum::chars, $this->conf->getWidthHeightTypeEnum());
+        $this->assertEquals(WidthHeightTypeEnum::chars->getValue(), $this->conf->getWidthHeightType());
     }
 
     public function testGetTermType(): void
     {
-        $this->assertEquals($this->defaultConfiguration['termType'], $this->conf->getTermType());
-        $this->assertEquals(TermTypeEnum::vanilla, $this->conf->getTermType(true));
+        $this->assertEquals($this->defaultConfiguration['termType'], $this->conf->getTermTypeEnum());
+        $this->assertEquals(TermTypeEnum::vanilla, $this->conf->getTermTypeEnum());
+        $this->assertEquals(TermTypeEnum::vanilla->getValue(), $this->conf->getTermType());
     }
 
     public function testGetAsArray(): void
     {
         $this->assertEquals($this->defaultConfiguration, $this->conf->getAsArray());
-    }
-
-    public function testGetLogger(): void
-    {
-        $this->assertEquals(new NullLogger(), $this->conf->getLogger());
     }
 
     public function testGetCallbacks(): void
@@ -143,34 +142,22 @@ final class ConfigurationTest extends TestCase
     {
         $new = (new Configuration())->setWidthHeightType(WidthHeightTypeEnum::pixels);
         $this->assertEquals(WidthHeightTypeEnum::pixels->getValue(), $new->getWidthHeightType());
-        $this->assertEquals(WidthHeightTypeEnum::pixels, $new->getWidthHeightType(true));
+        $this->assertEquals(WidthHeightTypeEnum::pixels, $new->getWidthHeightTypeEnum());
     }
 
     public function testSetTermType(): void
     {
         $new = (new Configuration())->setTermType(TermTypeEnum::xterm);
         $this->assertEquals(TermTypeEnum::xterm->getValue(), $new->getTermType());
-        $this->assertEquals(TermTypeEnum::xterm, $new->getTermType(true));
+        $this->assertEquals(TermTypeEnum::xterm, $new->getTermTypeEnum());
     }
 
     public function testSetMethods(): void
     {
-        $methods = [
-            'kex' => 'diffie-hellman-group1-sha1',
-            'hostkey' => 'ssh-rsa',
-            'client_to_server' => [
-                'crypt' => 'aes256-cbc',
-                'comp' => 'none',
-                'mac' => 'hmac-sha1'
-            ],
-            'server_to_client' => [
-                'crypt' => 'aes256-cbc',
-                'comp' => 'none',
-                'mac' => 'hmac-sha1'
-            ]
-        ];
+        $methods = new Methods();
         $new = (new Configuration())->setMethods($methods);
-        $this->assertEquals($methods, $new->getMethods());
+        $this->assertEquals($methods, $new->getMethodsObject());
+        $this->assertEquals($methods->asArray(), $new->getMethods());
     }
 
     public function testSetCallbacks(): void
@@ -178,13 +165,6 @@ final class ConfigurationTest extends TestCase
         $callbacks = null;
         $new = (new Configuration())->setCallbacks($callbacks);
         $this->assertEquals($callbacks, $new->getCallbacks());
-    }
-
-    public function testSetLogger(): void
-    {
-        $logger = new FileLogger('/var/log/ssh2/test.log');
-        $new = (new Configuration())->setLogger($logger);
-        $this->assertEquals($logger, $new->getLogger());
     }
 
     public function testSetFromArray(): void

@@ -1,14 +1,17 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Conf\Methods;
+namespace jzfpost\ssh2\Methods;
 
 use JetBrains\PhpStorm\ArrayShape;
-use jzfpost\ssh2\Conf\Methods\TransmittedParams\TransmittedParams;
+use JetBrains\PhpStorm\Pure;
+use jzfpost\ssh2\Methods\TransmittedParams\TransmittedParams;
 
 /**
  * @psalm-immutable
@@ -16,15 +19,15 @@ use jzfpost\ssh2\Conf\Methods\TransmittedParams\TransmittedParams;
 final class Methods implements MethodsInterface
 {
     public function __construct(
-        private readonly KexEnumCollection $kex = new KexEnumCollection(KexEnum::dhGroup1Sha1),
+        private readonly KexEnumCollection     $kex = new KexEnumCollection(KexEnum::dhGroup1Sha1),
         private readonly HostKeyEnumCollection $hostKey = new HostKeyEnumCollection(HostKeyEnum::RSA),
-        private readonly TransmittedParams $clientToServer = new TransmittedParams(),
-        private readonly TransmittedParams $serverToClient = new TransmittedParams()
+        private readonly TransmittedParams     $clientToServer = new TransmittedParams(),
+        private readonly TransmittedParams     $serverToClient = new TransmittedParams()
     )
     {
-
     }
 
+    #[Pure]
     #[ArrayShape([
         'kex' => "string",
         'hostkey' => "string",
@@ -41,13 +44,13 @@ final class Methods implements MethodsInterface
             'lang' => "string"
         ]
     ])]
-    public function getAsArray(): array
+    public function asArray(): array
     {
         return [
             'kex' => (string) $this->kex,
             'hostkey' => (string) $this->hostKey,
-            'client_to_server' => $this->clientToServer->getAsArray(),
-            'server_to_client' => $this->serverToClient->getAsArray()
+            'client_to_server' => $this->clientToServer->asArray(),
+            'server_to_client' => $this->serverToClient->asArray()
         ];
     }
 }

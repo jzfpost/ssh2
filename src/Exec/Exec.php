@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,31 +15,28 @@
 
 namespace jzfpost\ssh2\Exec;
 
-use jzfpost\ssh2\Exceptions\SshException;
+use jzfpost\ssh2\SshException;
 use function is_resource;
 use function ssh2_exec;
 use function trim;
 
 final class Exec extends AbstractExec
 {
-
     /**
      * @psalm-suppress PossiblyNullArgument
      * @throws SshException
      */
     public function exec(string $cmd): string
     {
-        $this->checkConnectionEstablished();
 
-        $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
+        $context = $this->context + ['{cmd}' => $cmd];
         $this->logger->notice("Trying execute \"{cmd}\"...", $context);
 
-        $session = $this->ssh->getSession();
-        if (is_resource($session)) {
+        if ($this->session->isConnected()) {
             $this->startTimer();
 
             $exec = ssh2_exec(
-                $session,
+                $this->session->getSession(),
                 trim($cmd),
                 $this->configuration->getTermType(),
                 $this->configuration->getEnv(),
@@ -53,31 +52,26 @@ final class Exec extends AbstractExec
                 $timer = $this->stopTimer();
 
                 if (false === $content) {
-                    $message = "Failed to execute \"$cmd\"";
-                    $this->logger->critical($message, $this->ssh->getLogContext());
-                    throw new SshException($message);
+                    throw new SshException("Failed to execute \"$cmd\"", $this->logger, $this->context);
                 }
 
                 $this->logger->info(
                     "Command execution time is {timer} microseconds",
-                    $this->ssh->getLogContext() + ['{timer}' => (string) $timer]
+                    $this->context + ['{timer}' => (string) $timer]
                 );
 
-                $this->logger->debug($content, $this->ssh->getLogContext());
-                $this->logger->info("Data transmission is over", $this->ssh->getLogContext());
+                $this->logger->debug($content, $this->context);
+                $this->logger->info("Data transmission is over", $this->context);
 
                 return trim($content);
             }
         }
 
-        $message = "Unable to exec command";
-        $this->logger->critical($message, $this->ssh->getLogContext());
-        throw new SshException($message);
+        throw new SshException("Unable to exec command", $this->logger, $this->context);
     }
 
     public function __destruct()
     {
         $this->close();
     }
-
 }

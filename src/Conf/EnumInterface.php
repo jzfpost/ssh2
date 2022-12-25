@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace jzfpost\ssh2\Conf;
 
-interface Configurable
+interface EnumInterface
 {
-    public function getConfiguration(): Configuration;
+
 }

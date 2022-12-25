@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,22 +15,25 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use jzfpost\ssh2\Session\SessionInterface;
+
 abstract class AbstractAuth implements AuthInterface
 {
+    protected bool $isAuthorised = false;
+
     public function __construct(protected readonly string $username)
     {
     }
 
-    /**
-     * @inheritDoc
-     */
-    abstract public function authenticate(mixed $session): bool;
+    abstract public function authenticate(SessionInterface $session): bool;
 
-    /**
-     * @inheritDoc
-     */
     public function getUsername(): string
     {
         return $this->username;
+    }
+
+    public function isAuthorised(): bool
+    {
+        return $this->isAuthorised;
     }
 }

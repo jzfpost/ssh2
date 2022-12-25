@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,14 +15,13 @@
 
 namespace jzfpost\ssh2\Auth;
 
-use JetBrains\PhpStorm\Pure;
+use jzfpost\ssh2\Session\SessionInterface;
 use function ssh2_auth_hostbased_file;
 
 final class Hostbased extends AbstractAuth
 {
-
-    #[Pure] public function __construct(
-        string  $username,
+    public function __construct(
+        string                  $username,
         private readonly string $hostname,
         private readonly string $pubkeyFile,
         private readonly string $privkeyFile,
@@ -34,10 +35,10 @@ final class Hostbased extends AbstractAuth
     /**
      * @inheritDoc
      */
-    public function authenticate(mixed $session): bool
+    public function authenticate(SessionInterface $session): bool
     {
-        return ssh2_auth_hostbased_file(
-            $session,
+        return $this->isAuthorised = @ssh2_auth_hostbased_file(
+            $session->getSession(),
             $this->username,
             $this->hostname,
             $this->pubkeyFile,
@@ -46,5 +47,4 @@ final class Hostbased extends AbstractAuth
             $this->localUsername
         );
     }
-
 }

@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,17 +15,16 @@
 
 namespace jzfpost\ssh2\Auth;
 
+use jzfpost\ssh2\Session\SessionInterface;
 use function ssh2_auth_none;
 
 final class None extends AbstractAuth
 {
-
     /**
      * @inheritDoc
      */
-    public function authenticate(mixed $session): bool
+    public function authenticate(SessionInterface $session): bool
     {
-        return ssh2_auth_none($session, $this->username) === true;
+        return $this->isAuthorised = @ssh2_auth_none($session->getSession(), $this->username) === true;
     }
-
 }

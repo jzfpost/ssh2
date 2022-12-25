@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,12 +15,12 @@
 
 namespace jzfpost\ssh2\Exec;
 
+use jzfpost\ssh2\Conf\Configurable;
 use jzfpost\ssh2\Conf\Configuration;
-use jzfpost\ssh2\Exceptions\SshException;
-use jzfpost\ssh2\Ssh;
+use jzfpost\ssh2\Session\SessionInterface;
+use jzfpost\ssh2\SshException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use function assert;
 use function fclose;
 use function fflush;
 use function is_resource;
@@ -29,20 +31,31 @@ use function stream_set_blocking;
 use function stream_set_timeout;
 use function usleep;
 
-abstract class AbstractExec implements ExecInterface
+abstract class AbstractExec implements ExecInterface, Configurable
 {
-    private float $executeTimestamp;
     /**
-     * @var resource|closed-resource|false errors
+     * @var resource|false
+     */
+//    protected mixed $session;
+    /**
+     * @var resource|closed-resource|false
      */
     protected mixed $stderr = false;
+    private float $executeTimestamp;
 
     public function __construct(
-        protected Ssh             $ssh,
-        protected Configuration   $configuration = new Configuration(),
-        protected LoggerInterface $logger = new NullLogger()
+        public SessionInterface $session,
+        public Configuration    $configuration = new Configuration(),
+        public LoggerInterface  $logger = new NullLogger(),
+        public array            $context = []
     )
     {
+        if (!$this->session->isConnected()) {
+            throw new SshException("Failed connection", $this->logger, $this->context);
+        }
+
+//        $this->session = $this->ssh->getSession();
+
         $this->executeTimestamp = microtime(true);
     }
 
@@ -58,6 +71,11 @@ abstract class AbstractExec implements ExecInterface
         $this->stderr = false;
     }
 
+    public function getConfiguration(): Configuration
+    {
+        return $this->configuration;
+    }
+
     /**
      * @psalm-return resource|false
      */
@@ -66,39 +84,24 @@ abstract class AbstractExec implements ExecInterface
         return is_resource($this->stderr) ? $this->stderr : false;
     }
 
-    protected function checkConnectionEstablished(): void
-    {
-        if (!$this->ssh->isConnected()) {
-            $message = "Failed connection";
-            $this->logger->critical($message, $this->ssh->getLogContext());
-            throw new SshException($message);
-        }
-        if (false === $this->ssh->isAuthorised()) {
-            $message = "Failed authorisation";
-            $this->logger->critical($message, $this->ssh->getLogContext());
-            throw new SshException($message);
-        }
-    }
-
     /**
-     * @psalm-param resource $streem
+     * @param resource $stream
      */
-    protected function fetchStream(mixed $stream): void
+    public function fetchStream(mixed $stream): void
     {
-        assert(is_resource($stream));
-
         $this->stderr = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
         stream_set_blocking($this->stderr, true);
         stream_set_blocking($stream, true);
     }
 
-    protected function getStreamContent(mixed $stream): false|string
+    /**
+     * @param resource $stream
+     */
+    public function getStreamContent(mixed $stream): false|string
     {
-        assert(is_resource($stream));
-
         usleep($this->configuration->getWait());
         stream_set_timeout($stream, $this->configuration->getTimeout());
-        $content = stream_get_contents($stream);
+        $content = @stream_get_contents($stream);
         @fflush($stream);
 
         return $content;

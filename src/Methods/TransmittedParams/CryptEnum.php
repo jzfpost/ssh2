@@ -1,10 +1,12 @@
 <?php
 
-namespace jzfpost\ssh2\Conf\Methods\TransmittedParams;
+declare(strict_types=1);
 
-use jzfpost\ssh2\Conf\TypeEnumInterface;
+namespace jzfpost\ssh2\Methods\TransmittedParams;
 
-enum CryptEnum: string implements TypeEnumInterface
+use jzfpost\ssh2\Methods\MethodsEnumInterface;
+
+enum CryptEnum: string implements MethodsEnumInterface
 {
     case rijndael = 'rijndael-cbc@lysator.liu.se';
     case AES256cbc = 'aes256-cbc';
@@ -19,14 +21,4 @@ enum CryptEnum: string implements TypeEnumInterface
     case arcfour = 'arcfour';
     case arcfour128 = 'arcfour128';
     case none = 'none';
-
-    public function getValue(): string
-    {
-        return $this->value;
-    }
-
-    public function getFromValue(string $value): self
-    {
-        return self::from($value);
-    }
 }

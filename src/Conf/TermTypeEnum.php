@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -26,12 +28,12 @@ enum TermTypeEnum implements TypeEnumInterface
     case vt102;
     case vanilla;
 
-    public function getValue(): string
+    final public function getValue(): string
     {
         return $this->name;
     }
 
-    public function getFromValue(string $value): self
+    final public function getFromValue(string $value): self
     {
         foreach (self::cases() as $case) {
             if ($case->getValue() === $value) {

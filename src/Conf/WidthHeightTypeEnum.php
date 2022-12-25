@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -15,16 +17,10 @@ namespace jzfpost\ssh2\Conf;
 
 enum WidthHeightTypeEnum implements IntEnumInterface
 {
-    /**
-     * SSH2_TERM_UNIT_CHARS
-     */
     case chars;
-    /**
-     * SSH2_TERM_UNIT_PIXELS
-     */
     case pixels;
 
-    public function getValue(): int
+    final public function getValue(): int
     {
         return match ($this) {
             self::chars => SSH2_TERM_UNIT_CHARS,
@@ -32,7 +28,7 @@ enum WidthHeightTypeEnum implements IntEnumInterface
         };
     }
 
-    public function getFromValue(int $value): self
+    final public function getFromValue(int $value): self
     {
         foreach (self::cases() as $case) {
             if ($case->getValue() === $value) {

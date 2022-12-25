@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @package     jzfpost\ssh2
  *
@@ -13,7 +15,7 @@
 
 namespace jzfpost\ssh2\Exec;
 
-use jzfpost\ssh2\Exceptions\SshException;
+use jzfpost\ssh2\SshException;
 use function fclose;
 use function fflush;
 use function fgetc;
@@ -32,7 +34,6 @@ use function usleep;
 
 final class Shell extends AbstractExec implements ShellInterface
 {
-
     /**
      * @var resource|closed-resource|false shell
      */
@@ -44,18 +45,16 @@ final class Shell extends AbstractExec implements ShellInterface
      */
     public function open(string $prompt): ShellInterface
     {
-        $this->checkConnectionEstablished();
 
-        $this->logger->notice("Trying opening shell...", $this->ssh->getLogContext());
+        $this->logger->notice("Trying opening shell...", $this->context);
 
         if (is_resource($this->shell)) {
-            throw new SshException("Already opened shell");
+            throw new SshException("Already opened shell", $this->logger, $this->context);
         }
 
-        $session = $this->ssh->getSession();
-        if (is_resource($session)) {
-            $this->shell = ssh2_shell(
-                $session,
+        if ($this->session->isConnected()) {
+            $this->shell = @ssh2_shell(
+                $this->session->getSession(),
                 $this->configuration->getTermType(),
                 $this->configuration->getEnv(),
                 $this->configuration->getWidth(),
@@ -65,7 +64,7 @@ final class Shell extends AbstractExec implements ShellInterface
 
             if ($this->isOpened()) {
 
-                $this->logger->notice("Shell opened success", $this->ssh->getLogContext());
+                $this->logger->notice("Shell opened success", $this->context);
 
                 $this->fetchStream($this->shell);
 
@@ -75,9 +74,7 @@ final class Shell extends AbstractExec implements ShellInterface
             }
         }
 
-        $message = "Unable to establish shell";
-        $this->logger->critical($message, $this->ssh->getLogContext());
-        throw new SshException($message);
+        throw new SshException("Unable to establish shell", $this->logger, $this->context);
     }
 
     public function isOpened(): bool
@@ -90,13 +87,13 @@ final class Shell extends AbstractExec implements ShellInterface
         if (is_resource($this->shell)) {
             @fflush($this->shell);
             if (!@fclose($this->shell)) {
-                $this->logger->critical('Shell stream closes is fail.', $this->ssh->getLogContext());
+                $this->logger->critical('Shell stream closes is fail.', $this->context);
             }
         }
 
-        parent::close();
-
         $this->shell = false;
+
+        parent::close();
     }
 
     /**
@@ -104,7 +101,7 @@ final class Shell extends AbstractExec implements ShellInterface
      */
     public function exec(string $cmd): string
     {
-        $context = $this->ssh->getLogContext() + ['{cmd}' => $cmd];
+        $context = $this->context + ['{cmd}' => $cmd];
         $this->logger->notice("Trying execute \"{cmd}\"...", $context);
 
         if (is_resource($this->shell)) {
@@ -115,25 +112,21 @@ final class Shell extends AbstractExec implements ShellInterface
             $timer = $this->stopTimer();
 
             if (false === $content) {
-                $message = "Failed to execute \"$cmd\"";
-                $this->logger->critical($message, $context);
-                throw new SshException($message);
+                throw new SshException("Failed to execute \"$cmd\"", $this->logger, $this->context);
             }
 
             $this->logger->info(
                 "Command execution time is {timer} microseconds",
-                $this->ssh->getLogContext() + ['{timer}' => (string) $timer]
+                $this->context + ['{timer}' => (string) $timer]
             );
 
-            $this->logger->debug($content, $this->ssh->getLogContext());
-            $this->logger->info("Data transmission is over", $this->ssh->getLogContext());
+            $this->logger->debug($content, $this->context);
+            $this->logger->info("Data transmission is over", $this->context);
 
             return $this->trimFirstLine(trim($content));
         }
 
-        $message = "Open shell first!";
-        $this->logger->critical($message, $this->ssh->getLogContext());
-        throw new SshException($message);
+        throw new SshException("Open shell first!", $this->logger, $this->context);
     }
 
     /**
@@ -150,9 +143,7 @@ final class Shell extends AbstractExec implements ShellInterface
             return $this->trimPrompt($content, $prompt);
         }
 
-        $message = "Open shell first!";
-        $this->logger->critical($message, $this->ssh->getLogContext());
-        throw new SshException($message);
+        throw new SshException("Open shell first!", $this->logger, $this->context);
     }
 
     /**
@@ -162,16 +153,13 @@ final class Shell extends AbstractExec implements ShellInterface
     private function write(string $cmd): void
     {
         if (is_resource($this->shell)) {
-            $this->logger->notice("Write command to $this->ssh => \"{cmd}\"", $this->ssh->getLogContext() + ['{cmd}' => $cmd]);
+            $this->logger->notice("Write command to host {host}:{port} => \"{cmd}\"", $this->context + ['{cmd}' => $cmd]);
 
             $this->startTimer();
 
-
             fwrite($this->shell, trim($cmd) . PHP_EOL);
         } else {
-            $message = "Failed to execute \"$cmd\"";
-            $this->logger->critical($message, $this->ssh->getLogContext());
-            throw new SshException($message);
+            throw new SshException("Failed to execute \"$cmd\"", $this->logger, $this->context);
         }
     }
 
@@ -185,14 +173,14 @@ final class Shell extends AbstractExec implements ShellInterface
         if (is_resource($this->shell)) {
             $this->logger->info(
                 "Set prompt to \"{prompt}\" on shell",
-                $this->ssh->getLogContext() + ['{prompt}' => $prompt]
+                $this->context + ['{prompt}' => $prompt]
             );
 
             usleep($this->configuration->getWait());
 
             stream_set_timeout($this->shell, $this->configuration->getTimeout());
 
-            $buffer = '';
+            $content = '';
 
             do {
                 $c = @fgetc($this->shell);
@@ -200,15 +188,15 @@ final class Shell extends AbstractExec implements ShellInterface
                 if (false === $c) {
                     $this->logger->info(
                         "Timeout released before the prompt was read shell stream",
-                        $this->ssh->getLogContext()
+                        $this->context
                     );
 
                     break;
                 }
 
-                $buffer .= $c;
+                $content .= $c;
 
-                if (preg_match("/$prompt\s?$/im", $buffer)) {
+                if (preg_match("/$prompt\s?$/im", $content)) {
                     break;
                 }
 
@@ -220,21 +208,16 @@ final class Shell extends AbstractExec implements ShellInterface
 
             $this->logger->info(
                 "Command execution time is {timer} microseconds",
-                $this->ssh->getLogContext() + ['{timer}' => (string) $timer]
+                $this->context + ['{timer}' => (string) $timer]
             );
 
-            $this->logger->debug($buffer, $this->ssh->getLogContext());
-            $this->logger->info(
-                "Data transmission is over on shell",
-                $this->ssh->getLogContext()
-            );
+            $this->logger->debug($content, $this->context);
+            $this->logger->info("Data transmission is over on shell", $this->context);
 
-            return $buffer;
+            return $content;
         }
 
-        $message = "Failed reed resource";
-        $this->logger->critical($message, $this->ssh->getLogContext());
-        throw new SshException($message);
+        throw new SshException("Failed reed resource", $this->logger, $this->context);
     }
 
     /**

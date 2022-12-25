@@ -1,16 +1,20 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Conf\Methods;
+namespace jzfpost\ssh2\Methods;
 
 use JetBrains\PhpStorm\ArrayShape;
+use JetBrains\PhpStorm\Pure;
 
 interface MethodsInterface
 {
+    #[pure]
     #[ArrayShape([
         'kex' => "string",
         'hostkey' => "string",
@@ -27,5 +31,5 @@ interface MethodsInterface
             'lang' => "string"
         ]
     ])]
-    public function getAsArray(): array;
+    public function asArray(): array;
 }

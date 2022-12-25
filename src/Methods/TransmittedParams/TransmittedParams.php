@@ -1,11 +1,13 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 /**
  * @author      Eugenith <jzfpost@gmail.com>
  * @copyright   jzfpost
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Conf\Methods\TransmittedParams;
+namespace jzfpost\ssh2\Methods\TransmittedParams;
 
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;
@@ -17,9 +19,9 @@ final class TransmittedParams implements TransmittedParamsInterface
 {
     public function __construct(
         private readonly CryptEnumCollection $crypt = new CryptEnumCollection(CryptEnum::AES256cbc),
-        private readonly CompressionEnum $comp = CompressionEnum::none,
-        private readonly HmacEnumCollection $mac = new HmacEnumCollection(HmacEnum::sha1),
-        private readonly string $lang = ''
+        private readonly CompressionEnum     $comp = CompressionEnum::none,
+        private readonly HmacEnumCollection  $mac = new HmacEnumCollection(HmacEnum::sha1),
+        private readonly string              $lang = ''
     )
     {
     }
@@ -31,11 +33,11 @@ final class TransmittedParams implements TransmittedParamsInterface
         'mac' => "string",
         'lang' => "string"
     ])]
-    public function getAsArray(): array
+    public function asArray(): array
     {
         return [
             'crypt' => (string) $this->crypt,
-            'comp' => $this->comp->getValue(),
+            'comp' => $this->comp->value,
             'mac' => (string) $this->mac,
             'lang' => $this->lang
         ];
