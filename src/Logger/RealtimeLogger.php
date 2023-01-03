@@ -20,12 +20,10 @@ use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Stringable;
 
-final class PrintableLogger extends AbstractLogger implements LoggerInterface
+final class RealtimeLogger extends AbstractLogger implements LoggerInterface
 {
 
-    public function __construct(
-        public string $dateFormat = 'Y M d H:i:s'
-    )
+    public function __construct(public string $dateFormat = 'Y M d H:i:s')
     {
     }
 

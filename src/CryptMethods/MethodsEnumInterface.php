@@ -7,7 +7,7 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods;
+namespace jzfpost\ssh2\CryptMethods;
 
 interface MethodsEnumInterface
 {

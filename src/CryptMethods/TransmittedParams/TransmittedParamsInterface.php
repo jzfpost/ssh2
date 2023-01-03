@@ -7,7 +7,7 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods\TransmittedParams;
+namespace jzfpost\ssh2\CryptMethods\TransmittedParams;
 
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;

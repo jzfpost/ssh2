@@ -5,19 +5,21 @@
 
 namespace jzfpost\ssh2\Conf;
 
-use jzfpost\ssh2\Methods\Methods;
+use jzfpost\ssh2\CryptMethods\CryptMethods;
 use jzfpost\ssh2\TestCase;
 
 final class ConfigurationTest extends TestCase
 {
     private Configuration $conf;
     private array $defaultConfiguration;
+    private $mock;
 
     private array $configuration;
 
     protected function setUp(): void
     {
         $this->conf = new Configuration();
+        $this->mock = $this->getMockClass('Configuration', array('setFromArray'), array());
         $this->defaultConfiguration = [
             'timeout' => 10,
             'wait' => 3500,
@@ -39,7 +41,7 @@ final class ConfigurationTest extends TestCase
         $this->configuration = [
             'timeout' => 5,
             'wait' => 7000,
-            'methods' => new Methods(),
+            'methods' => new CryptMethods(),
             'callbacks' => null,
             'termType' => TermTypeEnum::xterm,
             'env' => [
@@ -154,7 +156,7 @@ final class ConfigurationTest extends TestCase
 
     public function testSetMethods(): void
     {
-        $methods = new Methods();
+        $methods = new CryptMethods();
         $new = (new Configuration())->setMethods($methods);
         $this->assertEquals($methods, $new->getMethodsObject());
         $this->assertEquals($methods->asArray(), $new->getMethods());

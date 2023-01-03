@@ -18,7 +18,7 @@ namespace jzfpost\ssh2\Auth;
 use jzfpost\ssh2\Session\SessionInterface;
 use function ssh2_auth_pubkey_file;
 
-final class Pubkey extends AbstractAuth
+final class Pubkey extends AbstractAuth implements AuthInterface
 {
     public function __construct(
         string                  $username,
@@ -30,13 +30,10 @@ final class Pubkey extends AbstractAuth
         parent::__construct($username);
     }
 
-    /**
-     * @inheritDoc
-     */
     public function authenticate(SessionInterface $session): bool
     {
         return $this->isAuthorised = @ssh2_auth_pubkey_file(
-            $session->getSession(),
+            $session->getConnection(),
             $this->username,
             $this->pubkeyFile,
             $this->privkeyFile,

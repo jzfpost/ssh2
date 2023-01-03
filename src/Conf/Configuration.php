@@ -15,7 +15,7 @@ declare(strict_types=1);
 
 namespace jzfpost\ssh2\Conf;
 
-use jzfpost\ssh2\Methods\Methods;
+use jzfpost\ssh2\CryptMethods\CryptMethodsInterface;
 
 /**
  * USAGE:
@@ -34,7 +34,7 @@ class Configuration implements ConfigurationInterface
      * @psalm-var positive-int Delay execution in microseconds (ms)
      */
     private int $wait = 3500;
-    private ?Methods $methods = null;
+    private CryptMethodsInterface|null $cryptMethods = null;
     /**
      * Maybe an associative array with any of the ssh2 connect parameters
      * @psalm-param array<array-key, callable> $callbacks
@@ -45,14 +45,14 @@ class Configuration implements ConfigurationInterface
      *     'disconnect' => 'self::disconnect_cb($reason, $message, $language)'
      * ]
      */
-    private ?array $callbacks = [
+    private array|null $callbacks = [
         'ignore' => 'jzfpost\\ssh2\\Conf\\Callbacks::ignore_cb',
         'macerror' => 'jzfpost\\ssh2\\Conf\\Callbacks::macerror_cb',
         'disconnect' => 'jzfpost\\ssh2\\Conf\\Callbacks::disconnect_cb',
         'debug' => 'jzfpost\\ssh2\\Conf\\Callbacks::debug_cb'
     ];
     private TermTypeEnum $termType = TermTypeEnum::vanilla;
-    private ?array $env = null;
+    private array|null $env = null;
     /**
      * @psalm-var positive-int
      */
@@ -118,17 +118,10 @@ class Configuration implements ConfigurationInterface
 
     /**
      * @inheritDoc
-     * @psalm-suppress MixedMethodCall, MixedAssignment
      */
     public function setFromArray(array $options = []): self
     {
-        $new = clone $this;
-
-        foreach ($options as $property => $value) {
-            $new->$property = $value;
-        }
-
-        return $new;
+        return new self($options);
     }
 
     public function getTimeout(): int
@@ -175,15 +168,15 @@ class Configuration implements ConfigurationInterface
 
     public function getMethods(): ?array
     {
-        return $this->methods?->asArray();
+        return $this->cryptMethods?->asArray();
     }
 
-    public function getMethodsObject(): ?Methods
+    public function getMethodsObject(): ?CryptMethodsInterface
     {
-        return $this->methods;
+        return $this->cryptMethods;
     }
 
-    public function setMethods(?Methods $methods = null): self
+    public function setMethods(?CryptMethodsInterface $methods = null): self
     {
         return $this->set('methods', $methods);
     }

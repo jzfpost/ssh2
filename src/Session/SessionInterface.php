@@ -9,8 +9,6 @@ declare(strict_types=1);
 
 namespace jzfpost\ssh2\Session;
 
-use jzfpost\ssh2\Conf\FPAlgorithmEnum;
-
 interface SessionInterface
 {
     /**
@@ -26,9 +24,5 @@ interface SessionInterface
     /**
      * @return resource
      */
-    public function getSession(): mixed;
-
-    public function getMethodsNegotiated(): array;
-
-    public function getFingerPrint(FPAlgorithmEnum $algorithm = FPAlgorithmEnum::md5): string;
+    public function getConnection(): mixed;
 }

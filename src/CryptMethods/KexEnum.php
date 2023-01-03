@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace jzfpost\ssh2\Methods;
+namespace jzfpost\ssh2\CryptMethods;
 
 enum KexEnum: string implements MethodsEnumInterface
 {
@@ -10,4 +10,5 @@ enum KexEnum: string implements MethodsEnumInterface
     case dhGroup14Sha1 = 'diffie-hellman-group14-sha1';
     case dhGroupExchangeSha1 = 'diffie-hellman-group-exchange-sha1';
     case dhGroupExchangeSha256 = 'diffie-hellman-group-exchange-sha256';
+    case curve25519Sha256 = 'curve25519-sha256';
 }

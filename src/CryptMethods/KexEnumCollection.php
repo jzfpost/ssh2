@@ -7,18 +7,18 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods;
+namespace jzfpost\ssh2\CryptMethods;
 
-final class HostKeyEnumCollection extends MethodsEnumCollection
+final class KexEnumCollection extends MethodsEnumCollection
 {
-    public function __construct(HostKeyEnum $enum)
+    public function __construct(KexEnum $enum)
     {
         $this->enums[] = $enum;
     }
 
     public function add(MethodsEnumInterface $enum): self
     {
-        if ($enum instanceof HostKeyEnum) {
+        if ($enum instanceof KexEnum) {
             $this->enums[] = $enum;
         }
 

@@ -36,7 +36,7 @@ final class Exec extends AbstractExec
             $this->startTimer();
 
             $exec = ssh2_exec(
-                $this->session->getSession(),
+                $this->session->getConnection(),
                 trim($cmd),
                 $this->configuration->getTermType(),
                 $this->configuration->getEnv(),
@@ -49,16 +49,10 @@ final class Exec extends AbstractExec
                 $this->fetchStream($exec);
 
                 $content = $this->getStreamContent($exec);
-                $timer = $this->stopTimer();
 
                 if (false === $content) {
                     throw new SshException("Failed to execute \"$cmd\"", $this->logger, $this->context);
                 }
-
-                $this->logger->info(
-                    "Command execution time is {timer} microseconds",
-                    $this->context + ['{timer}' => (string) $timer]
-                );
 
                 $this->logger->debug($content, $this->context);
                 $this->logger->info("Data transmission is over", $this->context);

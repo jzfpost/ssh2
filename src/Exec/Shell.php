@@ -54,7 +54,7 @@ final class Shell extends AbstractExec implements ShellInterface
 
         if ($this->session->isConnected()) {
             $this->shell = @ssh2_shell(
-                $this->session->getSession(),
+                $this->session->getConnection(),
                 $this->configuration->getTermType(),
                 $this->configuration->getEnv(),
                 $this->configuration->getWidth(),
@@ -109,16 +109,10 @@ final class Shell extends AbstractExec implements ShellInterface
             $this->write($cmd);
 
             $content = $this->getStreamContent($this->shell);
-            $timer = $this->stopTimer();
 
             if (false === $content) {
                 throw new SshException("Failed to execute \"$cmd\"", $this->logger, $this->context);
             }
-
-            $this->logger->info(
-                "Command execution time is {timer} microseconds",
-                $this->context + ['{timer}' => (string) $timer]
-            );
 
             $this->logger->debug($content, $this->context);
             $this->logger->info("Data transmission is over", $this->context);
@@ -202,14 +196,9 @@ final class Shell extends AbstractExec implements ShellInterface
 
             } while (stream_get_meta_data($this->shell)["eof"] === false);
 
-            $timer = $this->stopTimer();
+            $this->stopTimer();
 
             @fflush($this->shell);
-
-            $this->logger->info(
-                "Command execution time is {timer} microseconds",
-                $this->context + ['{timer}' => (string) $timer]
-            );
 
             $this->logger->debug($content, $this->context);
             $this->logger->info("Data transmission is over on shell", $this->context);

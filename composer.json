@@ -25,8 +25,7 @@
     "roave/infection-static-analysis-plugin": "^1.25",
     "vimeo/psalm": "^5.0",
     "jetbrains/phpstorm-attributes": "dev-master",
-    "spatie/phpunit-watcher": "^1.23",
-    "rector/rector": "^0.15.0"
+    "spatie/phpunit-watcher": "^1.23"
   },
   "autoload": {
     "psr-4": {

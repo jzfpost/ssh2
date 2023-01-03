@@ -7,12 +7,12 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods;
+namespace jzfpost\ssh2\CryptMethods;
 
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;
 
-interface MethodsInterface
+interface CryptMethodsInterface
 {
     #[pure]
     #[ArrayShape([

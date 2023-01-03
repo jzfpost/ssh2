@@ -18,7 +18,7 @@ namespace jzfpost\ssh2\Auth;
 use jzfpost\ssh2\Session\SessionInterface;
 use function ssh2_auth_hostbased_file;
 
-final class Hostbased extends AbstractAuth
+final class Hostbased extends AbstractAuth implements AuthInterface
 {
     public function __construct(
         string                  $username,
@@ -32,13 +32,10 @@ final class Hostbased extends AbstractAuth
         parent::__construct($username);
     }
 
-    /**
-     * @inheritDoc
-     */
     public function authenticate(SessionInterface $session): bool
     {
         return $this->isAuthorised = @ssh2_auth_hostbased_file(
-            $session->getSession(),
+            $session->getConnection(),
             $this->username,
             $this->hostname,
             $this->pubkeyFile,

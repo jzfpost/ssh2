@@ -7,16 +7,16 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods;
+namespace jzfpost\ssh2\CryptMethods;
 
 use JetBrains\PhpStorm\ArrayShape;
 use JetBrains\PhpStorm\Pure;
-use jzfpost\ssh2\Methods\TransmittedParams\TransmittedParams;
+use jzfpost\ssh2\CryptMethods\TransmittedParams\TransmittedParams;
 
 /**
  * @psalm-immutable
  */
-final class Methods implements MethodsInterface
+final class CryptMethods implements CryptMethodsInterface
 {
     public function __construct(
         private readonly KexEnumCollection     $kex = new KexEnumCollection(KexEnum::dhGroup1Sha1),

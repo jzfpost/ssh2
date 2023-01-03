@@ -7,10 +7,10 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods\TransmittedParams;
+namespace jzfpost\ssh2\CryptMethods\TransmittedParams;
 
-use jzfpost\ssh2\Methods\MethodsEnumCollection;
-use jzfpost\ssh2\Methods\MethodsEnumInterface;
+use jzfpost\ssh2\CryptMethods\MethodsEnumCollection;
+use jzfpost\ssh2\CryptMethods\MethodsEnumInterface;
 
 final class CryptEnumCollection extends MethodsEnumCollection
 {

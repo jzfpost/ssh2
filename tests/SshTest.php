@@ -23,7 +23,7 @@ class SshTest extends TestCase
     {
         $ssh = new Ssh();
         $ssh->connect();
-        $methods = $ssh->getMethodsNegotiated();
+        $methods = $ssh->getCryptMethodsNegotiated();
         $this->assertArrayHasKey('kex', $methods);
         $this->assertArrayHasKey('hostkey', $methods);
         $this->assertArrayHasKey('client_to_server', $methods);

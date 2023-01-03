@@ -17,13 +17,18 @@ namespace jzfpost\ssh2;
 
 use jzfpost\ssh2\Auth\Authenticable;
 use jzfpost\ssh2\Auth\AuthInterface;
-use jzfpost\ssh2\Auth\AuthMethods;
+use jzfpost\ssh2\Auth\MethodsNegotiator\AuthMethodsNegotiator;
+use jzfpost\ssh2\Auth\MethodsNegotiator\AuthMethodsNegotiatorInterface;
 use jzfpost\ssh2\Conf\Configurable;
 use jzfpost\ssh2\Conf\Configuration;
 use jzfpost\ssh2\Conf\FPAlgorithmEnum;
+use jzfpost\ssh2\CryptMethodsNegotiator\CryptMethodsNegotiator;
+use jzfpost\ssh2\CryptMethodsNegotiator\CryptMethodsNegotiatorInterface;
 use jzfpost\ssh2\Exec\Exec;
 use jzfpost\ssh2\Exec\ExecInterface;
 use jzfpost\ssh2\Exec\Shell;
+use jzfpost\ssh2\FingerPrintNegotiator\FingerPrintNegotiator;
+use jzfpost\ssh2\FingerPrintNegotiator\FingerPrintNegotiatorInterface;
 use jzfpost\ssh2\Session\Session;
 use jzfpost\ssh2\Session\SessionInterface;
 use Psr\Log\LoggerInterface;
@@ -44,7 +49,7 @@ use function strtoupper;
  *  ->setTermType('dumb');
  *
  * $ssh2 = new Ssh($conf);
- * $ssh2->connect('192.168.1.1', 22, new PrintableLogger())
+ * $ssh2->connect('192.168.1.1', 22, new RealtimeLogger())
  *  ->authPassword($username, $password);
  *
  * // on router use shell
@@ -64,15 +69,23 @@ use function strtoupper;
  */
 final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
 {
+    /**
+     * @var non-empty-string
+     */
     private string $host = 'localhost';
+    /**
+     * @var positive-int
+     */
     private int $port = 22;
     private ?AuthInterface $auth = null;
     private ?ExecInterface $exec = null;
     private ?SessionInterface $session = null;
+    private ?FingerPrintNegotiatorInterface $fingerPrint = null;
+    private ?CryptMethodsNegotiatorInterface $cryptMethodsNegotiated = null;
     /**
-     * @var AuthMethods[]
+     * @var AuthMethodsNegotiatorInterface[]
      */
-    private array $authMethods = [];
+    private array $authMethodsNegotiators = [];
     /**
      * @var array<string, string>
      */
@@ -102,10 +115,13 @@ final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
 
         $new->host = $host;
         $new->port = $port;
-        $new->logger = $logger ?? $this->logger;
+        $new->logger = $logger ?? $new->logger;
         $new->setContext();
 
         $new->session = $new->getSession()->connect($new->host, $new->port);
+
+        $new->getFingerPrint($new->configuration->getFingerPrintAlgorithmEnum());
+        $new->getCryptMethodsNegotiated();
 
         return $new;
     }
@@ -143,17 +159,41 @@ final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
      * @return string the hostkey hash as a string
      * @throws SshException
      */
-    public function getFingerPrint(FPAlgorithmEnum $algorithm = FPAlgorithmEnum::md5): string
+    public function getFingerPrint(
+        FPAlgorithmEnum                $algorithm = FPAlgorithmEnum::md5,
+        FingerPrintNegotiatorInterface $fingerPrintNegotiator = new FingerPrintNegotiator()
+    ): string
     {
-        return $this->getSession()->getFingerPrint($algorithm);
+        if ($this->fingerPrint === null) {
+            $this->fingerPrint = $fingerPrintNegotiator->negotiate($this->getSession(), $algorithm);
+
+            $this->logger->notice("Retrieve fingerPrint algorithm: $algorithm->name", $this->context);
+            $this->logger->debug($this->fingerPrint->getFingerPrint(), $this->context);
+        }
+
+        return $this->fingerPrint->getFingerPrint();
     }
 
     /**
      * Return list of negotiated methods
      */
-    public function getMethodsNegotiated(): array
+    public function getCryptMethodsNegotiated(
+        CryptMethodsNegotiatorInterface $cryptMethodsNegotiator = new CryptMethodsNegotiator()
+    ): array
     {
-        return $this->getSession()->getMethodsNegotiated();
+        if ($this->cryptMethodsNegotiated === null) {
+            $this->cryptMethodsNegotiated = $cryptMethodsNegotiator->negotiate($this->getSession());
+
+
+            if (!empty($this->cryptMethodsNegotiated->getCryptMethodsAsArray())) {
+                $this->logger->notice("CryptMethods negotiated:", $this->context);
+                $this->logger->debug(print_r($this->cryptMethodsNegotiated->getCryptMethodsAsArray(), true), $this->context);
+            } else {
+                $this->logger->warning("No methods negotiated:", $this->context);
+            }
+        }
+
+        return $this->cryptMethodsNegotiated->getCryptMethodsAsArray();
     }
 
     public function getExec(): Exec
@@ -177,16 +217,17 @@ final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
 
     /**
      * Return an array of accepted authentication methods.
-     * Return true if the server does accept "none" as an authentication
-     * Call this method before auth()
      */
-    public function getAuthMethods(string $username): array
+    public function getAcceptedAuthMethods(
+        string                         $username,
+        AuthMethodsNegotiatorInterface $authMethodsNegotiator = new AuthMethodsNegotiator()
+    ): array
     {
         if (!$this->isAuthorised()) {
 
-            $this->authMethods[$username] = new AuthMethods($this->getSession(), $username);
+            $this->authMethodsNegotiators[$username] = $authMethodsNegotiator->negotiate($this->getSession(), $username);
 
-            $methods = $this->authMethods[$username]->getAuthMethods();
+            $methods = $this->authMethodsNegotiators[$username]->getAcceptedAuthMethods();
             if (!empty($methods)) {
                 $this->logger->notice("Authentication methods negotiated for username \"$username\":", $this->context);
                 $this->logger->debug(print_r($methods, true), $this->context);
@@ -195,7 +236,7 @@ final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
             }
         }
 
-        return array_key_exists($username, $this->authMethods) ? $this->authMethods[$username]->getAuthMethods() : [];
+        return array_key_exists($username, $this->authMethodsNegotiators) ? $this->authMethodsNegotiators[$username]->getAcceptedAuthMethods() : [];
     }
 
     /**
@@ -271,8 +312,6 @@ final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
             throw new SshException("Failed connecting", $this->logger, $this->context);
         }
 
-        $this->getAuthMethods($this->auth->getUsername());
-
         $this->logger->notice("Trying authenticate...", $this->context);
 
         if (!$this->auth->authenticate($this->getSession())) {
@@ -298,7 +337,7 @@ final class Ssh implements SshInterface, Configurable, Stringable, Authenticable
 
     public function isAuthorised(): bool
     {
-        return $this->auth->isAuthorised();
+        return $this->auth instanceof AuthInterface && $this->auth->isAuthorised();
     }
 
     /**

@@ -7,21 +7,18 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods\TransmittedParams;
+namespace jzfpost\ssh2\CryptMethods;
 
-use jzfpost\ssh2\Methods\MethodsEnumCollection;
-use jzfpost\ssh2\Methods\MethodsEnumInterface;
-
-final class HmacEnumCollection extends MethodsEnumCollection
+final class HostKeyEnumCollection extends MethodsEnumCollection
 {
-    public function __construct(HmacEnum $enum)
+    public function __construct(HostKeyEnum $enum)
     {
         $this->enums[] = $enum;
     }
 
     public function add(MethodsEnumInterface $enum): self
     {
-        if ($enum instanceof HmacEnum) {
+        if ($enum instanceof HostKeyEnum) {
             $this->enums[] = $enum;
         }
 

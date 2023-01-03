@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace jzfpost\ssh2\Methods\TransmittedParams;
+namespace jzfpost\ssh2\CryptMethods\TransmittedParams;
 
-use jzfpost\ssh2\Methods\MethodsEnumInterface;
+use jzfpost\ssh2\CryptMethods\MethodsEnumInterface;
 
 enum CompressionEnum: string implements MethodsEnumInterface
 {

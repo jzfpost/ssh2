@@ -34,14 +34,10 @@ use function usleep;
 abstract class AbstractExec implements ExecInterface, Configurable
 {
     /**
-     * @var resource|false
-     */
-//    protected mixed $session;
-    /**
      * @var resource|closed-resource|false
      */
     protected mixed $stderr = false;
-    private float $executeTimestamp;
+    private ?float $executeTimestamp = null;
 
     public function __construct(
         public SessionInterface $session,
@@ -54,9 +50,7 @@ abstract class AbstractExec implements ExecInterface, Configurable
             throw new SshException("Failed connection", $this->logger, $this->context);
         }
 
-//        $this->session = $this->ssh->getSession();
-
-        $this->executeTimestamp = microtime(true);
+//        $this->executeTimestamp = microtime(true);
     }
 
     abstract public function exec(string $cmd): string;
@@ -77,7 +71,7 @@ abstract class AbstractExec implements ExecInterface, Configurable
     }
 
     /**
-     * @psalm-return resource|false
+     * @inheritDoc
      */
     public function getStderr(): mixed
     {
@@ -87,7 +81,7 @@ abstract class AbstractExec implements ExecInterface, Configurable
     /**
      * @param resource $stream
      */
-    public function fetchStream(mixed $stream): void
+    protected function fetchStream(mixed $stream): void
     {
         $this->stderr = ssh2_fetch_stream($stream, SSH2_STREAM_STDERR);
         stream_set_blocking($this->stderr, true);
@@ -97,11 +91,12 @@ abstract class AbstractExec implements ExecInterface, Configurable
     /**
      * @param resource $stream
      */
-    public function getStreamContent(mixed $stream): false|string
+    protected function getStreamContent(mixed $stream): false|string
     {
         usleep($this->configuration->getWait());
         stream_set_timeout($stream, $this->configuration->getTimeout());
         $content = @stream_get_contents($stream);
+        $this->stopTimer();
         @fflush($stream);
 
         return $content;
@@ -112,9 +107,16 @@ abstract class AbstractExec implements ExecInterface, Configurable
         $this->executeTimestamp = microtime(true);
     }
 
-    protected function stopTimer(): float
+    protected function stopTimer(): void
     {
-        return microtime(true) - $this->executeTimestamp;
+        if (is_float($this->executeTimestamp)) {
+            $timer = microtime(true) - $this->executeTimestamp;
+            $this->logger->info(
+                "Command execution time is {timer} microseconds",
+                $this->context + ['{timer}' => (string) $timer]
+            );
+        }
+        $this->executeTimestamp = null;
     }
 
 }

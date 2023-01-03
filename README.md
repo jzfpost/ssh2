@@ -2,17 +2,24 @@ PHP [SSH2-client](https://github.com/jzfpost/ssh2) connection helper based on ex
 
 Example usage
 -------------
+
 ```php
 $auth = new Password('username', 'password');
 
-$conf = (new Configuration('192.168.1.1'));
+$conf = (new Configuration())
+    ->setTermType(TermTypeEnum::dumb);
         
-$ssh2 = new Ssh($conf);
-$ssh2->connect()->authentication($auth);
+$ssh2 = new Ssh($conf, new RealtimeLogger());
+$ssh2 = $ssh2->connect('192.168.1.1')
+    ->authPassword('jzf', 'Ob$curite_25');
+    
+if (!$ssh->authenticate()) {
+    throw new RuntimeException('Not authorised');
+};
 
 //open shell on network device
-$shell = $ssh2->getShell()->open(Shell::PROMPT_CISCO);
-$result = $shell->exec('ls -a', Shell::PROMPT_CISCO);
+$shell = $ssh2->getShell()->open(PromptEnum::cisco->value);
+$result = $shell->exec('show version');
 
 // or exec on linux
 $exec = $ssh2->getExec();

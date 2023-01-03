@@ -20,7 +20,7 @@ use Psr\Log\LoggerInterface;
 interface SshInterface
 {
     /**
-     * @param string $host
+     * @param non-empty-string $host
      * @param positive-int $port
      * @param LoggerInterface|null $logger
      * @return $this
@@ -36,7 +36,7 @@ interface SshInterface
      */
     public function getSession(): mixed;
 
-    public function getMethodsNegotiated(): array;
+    public function getCryptMethodsNegotiated(): array;
 
     public function getFingerPrint(): string;
 }

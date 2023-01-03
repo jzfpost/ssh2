@@ -20,4 +20,9 @@ interface ExecInterface
     public function exec(string $cmd): string;
 
     public function close(): void;
+
+    /**
+     * @return resource|false
+     */
+    public function getStderr(): mixed;
 }

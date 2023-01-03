@@ -13,15 +13,14 @@ declare(strict_types=1);
  * @requires    libssh2 version => ^1.8.0
  */
 
-namespace jzfpost\ssh2\Auth;
+namespace jzfpost\ssh2\FingerPrintNegotiator;
 
+use jzfpost\ssh2\Conf\FPAlgorithmEnum;
 use jzfpost\ssh2\Session\SessionInterface;
-use function ssh2_auth_agent;
 
-final class Agent extends AbstractAuth implements AuthInterface
+interface FingerPrintNegotiatorInterface
 {
-    public function authenticate(SessionInterface $session): bool
-    {
-        return $this->isAuthorised = @ssh2_auth_agent($session->getConnection(), $this->username);
-    }
+    public function negotiate(SessionInterface $session, FPAlgorithmEnum $algorithm = FPAlgorithmEnum::md5): self;
+
+    public function getFingerPrint(): string;
 }

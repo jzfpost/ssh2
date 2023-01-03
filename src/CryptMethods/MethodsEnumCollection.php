@@ -7,11 +7,11 @@ declare(strict_types=1);
  * @license     see LICENSE.txt
  */
 
-namespace jzfpost\ssh2\Methods;
+namespace jzfpost\ssh2\CryptMethods;
 
-use jzfpost\ssh2\Methods\TransmittedParams\CompressionEnum;
-use jzfpost\ssh2\Methods\TransmittedParams\CryptEnum;
-use jzfpost\ssh2\Methods\TransmittedParams\HmacEnum;
+use jzfpost\ssh2\CryptMethods\TransmittedParams\CompressionEnum;
+use jzfpost\ssh2\CryptMethods\TransmittedParams\CryptEnum;
+use jzfpost\ssh2\CryptMethods\TransmittedParams\HmacEnum;
 
 abstract class MethodsEnumCollection implements MethodsEnumCollectionInterface, \Stringable
 {

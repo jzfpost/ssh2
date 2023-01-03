@@ -18,7 +18,7 @@ namespace jzfpost\ssh2\Auth;
 use jzfpost\ssh2\Session\SessionInterface;
 use function ssh2_auth_password;
 
-final class Password extends AbstractAuth
+final class Password extends AbstractAuth implements AuthInterface
 {
     public function __construct(
         string                  $username,
@@ -28,11 +28,8 @@ final class Password extends AbstractAuth
         parent::__construct($username);
     }
 
-    /**
-     * @inheritDoc
-     */
     public function authenticate(SessionInterface $session): bool
     {
-        return $this->isAuthorised = @ssh2_auth_password($session->getSession(), $this->username, $this->password);
+        return $this->isAuthorised = @ssh2_auth_password($session->getConnection(), $this->username, $this->password);
     }
 }
